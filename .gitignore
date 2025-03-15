@@ -1,0 +1,109 @@
+# 基础忽略规则 - 适用于所有操作系统
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Node.js 项目
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 环境变量文件（包含敏感信息）
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env*.local
+
+# 构建输出
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# 测试相关
+coverage/
+.nyc_output/
+
+# IDE 配置文件
+.idea/
+.vscode/
+*.code-workspace
+
+# 编辑器临时文件
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 调试文件
+debug.log
+
+# 本地开发配置
+config/local.*
+config/credentials.*
+
+# 数据库文件（如果使用本地数据库）
+*.db
+*.sqlite
+*.sql
+dump.rdb
+
+# 日志文件
+*.log
+logs/
+
+# 包管理锁定文件（如果使用 pnpm）
+pnpm-lock.yaml
+
+# 可选忽略（根据项目实际情况添加）:
+# -------------------------------
+# TypeScript 编译输出（如果配置了不同的输出目录）
+# *.js
+# *.js.map
+
+# Docker 相关
+docker-compose.yml
+Dockerfile
+
+# 前端构建文件（如果包含前端代码）
+public/
+static/
+
+# 上传文件目录（如果有文件上传功能）
+uploads/
+
+# macOS 系统文件
+._*
+
+# Linux 系统文件
+*~
+
+# Windows 系统文件
+[Tt]humbs.db
+Desktop.ini
+
+# 调试工具文件
+.attach_pid*
+
+# 性能日志
+*.pid
+
+# 缓存文件
+.eslintcache
+.babelcache
+
+# 证书文件（绝对不要提交！）
+*.pem
+*.crt
+*.key
+*.csr
+*.cer
+*.pfx
+
+NOTE.md
