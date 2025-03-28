@@ -64,6 +64,10 @@
         page/upload/nav
         page/home/banners
         page/home/nav
+    6.获取商品列表接口  page/home/goodsList
+        创建goods数据库时候
+        goods为父表 对应的子表有（goods_id）→goods_image → goods_specs(该表又绑定了 specs父表)
+        
 
 ### 导入示例：
 ```js

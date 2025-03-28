@@ -1,5 +1,5 @@
 // 这是获取首页信息接口
-const { pageHomeBannerHandle,uploadBanners,uploadNav,pageHomeNavHandle } = require('../router_handler/page_home')
+const { pageHomeBannerHandle,uploadBanners,uploadNav,pageHomeNavHandle,pageHomeGoodsListHandle } = require('../router_handler/page_home')
 const express = require('express')
 const router = express.Router()
 
@@ -19,4 +19,7 @@ router.post('/upload/nav',uploadHome.single('image'),uploadNav)
 // 获取首页接口
 router.get('/home/banners',pageHomeBannerHandle)
 router.get('/home/nav',pageHomeNavHandle)
+
+// 获取首页推荐商品卡片
+router.get('/home/goodsList',pageHomeGoodsListHandle)
 module.exports = router

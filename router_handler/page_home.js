@@ -36,7 +36,7 @@ exports.uploadNav = async (req, res) => {
         if (!file) return res.cc('未上传文件')
         const imageUrl = 'pageHome_img/' + req.file.filename
 
-        const sql = 'insert into navigation_bars (name,type,icon_url) values (?,?,?)'
+        const sql = 'insert into home_nav (name,type,icon_url) values (?,?,?)'
         db.query(sql, [userInfo.name, userInfo.type || 'default', imageUrl], (err, results) => {
             if (err) return res.cc(err)
             if (results.affectedRows !== 1) return res.cc('上传失败')
@@ -53,11 +53,7 @@ exports.uploadNav = async (req, res) => {
 // 获取轮播图
 exports.pageHomeBannerHandle = async (req, res) => {
     try {
-        const page = parseInt(req.body.page) || 1  //默认第一页
         const limit = parseInt(req.body.limit) || 4  //默认每一页4条
-
-        // 计算offset(偏移量)
-        const offset = (page - 1) * limit
 
         const baseUrl = 'http://127.0.0.1/'   // 根据实际部署环境调整
         // const imageUrl = baseUrl + '/pageHome_img/' + req.file.filename   // 访问路径
@@ -80,12 +76,13 @@ exports.pageHomeBannerHandle = async (req, res) => {
 
 }
 
+
 // 获取导航栏
 exports.pageHomeNavHandle = async (req, res) => {
     try {
         const limit = parseInt(req.body.limit) || 12
         const baseUrl = 'http://127.0.0.1/'
-        const dql = 'select name,type,icon_url,categories_id from navigation_bars limit ? '
+        const dql = 'select name,type,icon_url,categories_id from home_nav limit ? '
         await db.query(dql, limit, (err, results) => {
             if (err) return res.cc(err)
             // 用forEach 给每一个对象里面的icon_url添加前缀 baseurl
@@ -101,6 +98,37 @@ exports.pageHomeNavHandle = async (req, res) => {
         })
     } catch (err) {
         console.error('数据库错误详情:', err)
+        res.cc(err)
+    }
+}
+
+// 获取商品卡片数据
+exports.pageHomeGoodsListHandle = async (req, res) => {
+    try {
+        const page = parseInt(req.body.page) || 1  //默认第一页
+        const limit = parseInt(req.body.limit) || 10  //默认每一页4条
+
+        //  page 和 limit 是有效数字
+        if (isNaN(page) || isNaN(limit)) {
+            throw new Error("页面和限制必须是数字");
+        }
+
+        // 计算offset(偏移量)
+        const offset = (page - 1) * limit
+
+        const dql = 'select g.id,g.title,g.price_min,g.price_max,g.stock,gi.goods_id,gi.url as "goods_cover_image" from goods g join goods_images gi on g.id = gi.goods_id and gi.type = "cover" order by g.created_at desc limit ? offset ?'
+
+        db.query(dql, [limit, offset], (err, results) => {
+            if (err) return res.cc(err)
+            res.send({
+                status: 0,
+                msg:'succeed',
+                type:'商品',
+                data: results
+            })
+        })
+    } catch (err) {
+        console.log('数据库错误详情:', err)
         res.cc(err)
     }
 }
