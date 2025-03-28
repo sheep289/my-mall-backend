@@ -47,3 +47,35 @@
                 const { expressjwt: jwt } = require('express-jwt')
                 app.use(jwt({secret: process.env.JWT_PRIVATEKEY,algorithms: ["HS256"],}).unless({ path: [/^\/api\//] }))
 
+
+## 2.首页接口业务逻辑
+    - 上传图片接口（管理员） 导航栏接口 
+    1.创建public/home_img文件夹  存放客户端请求传过来的图片路径，在存到本地文件 ，将上传模块抽离到单独模块（创建config/uplooad.js）
+    流程如下：前端上传 → 2. ​Multer 存文件 → 3. ​路径存数据库 → 4. ​返回 URL → 5. ​前端用 URL 渲染图片
+    2.安装 npm install --save multer 中间件
+        为什么用 multer？
+        因为前端通过 FormData 发送文件时，数据格式是 multipart/form-data，普通的 express.json() 解析不了，必须用 multer 
+        这个中间件专门处理
+    3.配置上传模块（复用工厂函数）​config/upload
+    4.router/page_home导入upload 并使用
+    
+    5.接口有：上传轮播图，上传导航栏，获取轮播图，获取导航栏接口
+        page/upload/banners
+        page/upload/nav
+        page/home/banners
+        page/home/nav
+
+### 导入示例：
+```js
+    const createUploader = require('../config/upload')
+    // 配置主页图片上传器
+    const uploadHome = createUploader({
+    subfolder: 'pageHome_img', // 存到 public/home_img
+    prefix: 'home_', // 文件名前缀，如 home_1623456789-xxx.jpg
+    })
+
+    router.post('/upload/banners',uploadHome.single('image'), uploadBanners)
+
+```
+
+

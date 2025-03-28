@@ -1,0 +1,106 @@
+// 首页接口处理函数模块
+
+const db = require('../db/index')
+
+// 轮播图
+exports.uploadBanners = async (req, res) => {
+    try {
+        // 获取文件信息
+        const file = req.file
+        if (!file) return res.cc('未上传文件')
+        // 构造图片的访问路径（相对url）
+        const imageUrl = 'pageHome_img/' + req.file.filename // 访问路径
+
+        // 将路径存入数据库
+        const sql = 'insert into home_banners (image_url) values (?)'
+        await db.query(sql, [imageUrl], (err, results) => {
+            if (err) return res.cc(err)
+            // 判断影响行数是否为 1 
+            if (results.affectedRows !== 1) return res.cc('上传失败')
+            res.send({
+                status: 0,
+                msg: '上传成功'
+            })
+        })
+
+    } catch (err) {
+        res.cc('服务器错误')
+    }
+}
+
+// 导航栏
+exports.uploadNav = async (req, res) => {
+    try {
+        const userInfo = req.body
+        const file = req.file
+        if (!file) return res.cc('未上传文件')
+        const imageUrl = 'pageHome_img/' + req.file.filename
+
+        const sql = 'insert into navigation_bars (name,type,icon_url) values (?,?,?)'
+        db.query(sql, [userInfo.name, userInfo.type || 'default', imageUrl], (err, results) => {
+            if (err) return res.cc(err)
+            if (results.affectedRows !== 1) return res.cc('上传失败')
+            res.send({
+                status: 0,
+                msg: '上传成功'
+            })
+        })
+    } catch (err) {
+        res.cc('服务器错误')
+    }
+}
+
+// 获取轮播图
+exports.pageHomeBannerHandle = async (req, res) => {
+    try {
+        const page = parseInt(req.body.page) || 1  //默认第一页
+        const limit = parseInt(req.body.limit) || 4  //默认每一页4条
+
+        // 计算offset(偏移量)
+        const offset = (page - 1) * limit
+
+        const baseUrl = 'http://127.0.0.1/'   // 根据实际部署环境调整
+        // const imageUrl = baseUrl + '/pageHome_img/' + req.file.filename   // 访问路径
+
+        const dql = 'select image_url as imageUrl from home_banners order by id desc limit ?'
+        await db.query(dql, limit, (err, results) => {
+            if (err) return res.cc(err)
+            res.send({
+                status: 0,
+                msg: 'succeed',
+                name: '轮播图',
+                data_url: results.map(item => baseUrl + item.imageUrl)
+            })
+        })
+
+    } catch (err) {
+        console.error('数据库错误详情:', err);
+        res.cc(err)
+    }
+
+}
+
+// 获取导航栏
+exports.pageHomeNavHandle = async (req, res) => {
+    try {
+        const limit = parseInt(req.body.limit) || 12
+        const baseUrl = 'http://127.0.0.1/'
+        const dql = 'select name,type,icon_url,categories_id from navigation_bars limit ? '
+        await db.query(dql, limit, (err, results) => {
+            if (err) return res.cc(err)
+            // 用forEach 给每一个对象里面的icon_url添加前缀 baseurl
+            results.forEach(item => {
+                item.icon_url = baseUrl + item.icon_url
+            })
+            res.send({
+                status: 0,
+                msg: 'succeed',
+                name: '导航栏',
+                data: results
+            })
+        })
+    } catch (err) {
+        console.error('数据库错误详情:', err)
+        res.cc(err)
+    }
+}

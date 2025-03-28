@@ -9,6 +9,7 @@ app.use(cors({ methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }))
 // 注册全局解析表单数据中间件
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
+app.use(express.static('public')) //将public 提供为静态资源
 
 
 // 为res挂载 res.cc() 函数
@@ -30,12 +31,16 @@ app.use(
     jwt({
         secret: process.env.JWT_PRIVATEKEY,
         algorithms: ["HS256"],
-    }).unless({ path: [/^\/api\//] })
+    }).unless({ path: [/^\/api || home\//] })
 )
 
 // 导入用户路由模块
 const userRouter = require('./router/user')
 app.use('/api', userRouter)
+
+// 导入首页路由模块
+const homeRouter = require('./router/page_home')
+app.use('/page',homeRouter)
 
 // 错误处理中间件（捕获验证错误信息，并响应给客户端）
 app.use((err, req, res, next) => {
