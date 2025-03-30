@@ -31,7 +31,7 @@ app.use(
     jwt({
         secret: process.env.JWT_PRIVATEKEY,
         algorithms: ["HS256"],
-    }).unless({ path: [/^\/api || home\//] })
+    }).unless({ path: [{ url: /^\/api/ },{ url: /^\/page/ }]})
 )
 
 // 导入用户路由模块
@@ -40,13 +40,18 @@ app.use('/api', userRouter)
 
 // 导入首页路由模块
 const homeRouter = require('./router/page_home')
-app.use('/page',homeRouter)
+app.use('/page', homeRouter)
+
+// 导入商品详情页路由模块
+const detailRouter = require('./router/detail_page')
+app.use('/api', detailRouter)
+
 
 // 错误处理中间件（捕获验证错误信息，并响应给客户端）
 app.use((err, req, res, next) => {
     if (err instanceof joi.ValidationError) return res.cc(err)
     // token验证失败的错误
-    if (err.name === 'UnauthorizedError') return res.cc('身份认证失败！',401)
+    if (err.name === 'UnauthorizedError') return res.cc('无效的认证凭证', 401)
     //未知错误信息
     res.cc('未知错误')
 })
