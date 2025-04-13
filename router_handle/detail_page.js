@@ -1,4 +1,3 @@
-const { json } = require('express')
 const db = require('../db/index')
 // 导入指定格式时间模块
 const TIME = require('../utils/dateFormat')
@@ -8,7 +7,7 @@ const desensitization = require('../utils/desensitize')
 exports.goodsDetailPageHandle = async (req, res) => {
     try {
         // 需拿到客户端传过来的goodsId
-        const goodsId = req.body.goodsId
+        const goodsId = req.query.goodsId || req.body.goodsId
         if (!goodsId) return res.cc('未传 goodsId ')
         // 1.查询商品信息sql语句
         const dql = `
@@ -19,9 +18,13 @@ exports.goodsDetailPageHandle = async (req, res) => {
 
         // 2.查询商品规格sql语句
         const specs = `
-            select s.name 'name',s.id as 'specs_id',JSON_ARRAYAGG(gs.value) as 'values',JSON_ARRAYAGG(gs.stock) 'specs_stock',JSON_ARRAYAGG( gs.image_url) 'color_image_url'
-from goods_specs gs join specs s on gs.spec_id = s.id
-where gs.goods_id = ?  group by s.name
+            select s.name 'name',
+            s.type 'type',
+            s.id as 'specs_id',
+            JSON_ARRAYAGG(JSON_OBJECT('id',gs.id,'value',gs.value,'stock',gs.stock,'price',gs.price)) as 'values',
+            JSON_ARRAYAGG( gs.image_url) 'color_image_url'
+                from goods_specs gs join specs s on gs.spec_id = s.id
+                where gs.goods_id = ?  group by s.name
         `
 
         await db.query(dql, goodsId, (err, results) => {
@@ -45,7 +48,7 @@ where gs.goods_id = ?  group by s.name
                 detailData.specs = results2
                 res.send({
                     status: 0,
-                    msg:"succeed",
+                    msg: "succeed",
                     data: detailData
                 })
             })
@@ -58,37 +61,40 @@ where gs.goods_id = ?  group by s.name
 }
 // 处理用户评论模块
 
-exports.goodsCommentHandle = (req, res) => {
+exports.goodsCommentHandle = async (req, res) => {
     try {
         // 客户端携带goodsId limit(可选 默认为4)
-        const goodsId = req.body.goodsId
+        const goodsId = req.query.goodsId || req.body.goodsId
         const limit = parseInt(req.body.limit) || 4
         if (!goodsId) return res.cc('未传 goodsId ')
-        if(isNaN(limit)){
+        if (isNaN(limit)) {
             throw new Error("页面和限制必须是数字");
         }
-        
-        const dql  = `
+        const baseUrl = 'http://127.0.0.1/'   // 根据实际部署环境调整
+        const dql = `
             select
-        u.username as 'username',u.nickname 'nick_name',u.avatar 'head_portrait',ugc.goods_id 'goodsID',ugc.goods_comment as'goods_comment',ugc.comment_images 'comment_image',ugc.rating 'goods_rating',ugc.created_at 'comment_timer'
+        u.username as 'username',u.nickname 'nick_name',u.avatar 'head_portrait',u.default_avatar 'default_head_portrait',ugc.goods_id 'goodsID',ugc.goods_comment as'goods_comment',JSON_ARRAY(ugc.comment_images) 'comment_images',ugc.rating 'goods_rating',ugc.created_at 'comment_timer'
         from users u join users_goods_comment ugc on u.id = ugc.user_id
         where ugc.goods_id = ?
         order by ugc.rating desc,ugc.created_at desc limit ?;
         `
-        db.query(dql,[goodsId,limit],(err,results) => {
-            if(results.length <= 0) return res.cc('请输入有效的goodsId')
+        await db.query(dql, [goodsId, limit], (err, results) => {
+            if (results.length <= 0) return res.cc('请输入有效的goodsId')
             results.forEach(item => {
-                item.comment_timer = TIME.dateFormat(item.comment_timer)   
-                item.username = desensitization.desensitizePhone(item.username)                                   
+                item.comment_timer = TIME.dateFormat(item.comment_timer)
+                item.username = desensitization.desensitizePhone(item.username)
+                item.default_head_portrait = baseUrl + item.default_head_portrait
+                item.head_portrait = item.head_portrait ? baseUrl + item.head_portrait : item.head_portrait
+                item.comment_images = JSON.parse(item.comment_images).filter(img => img != null && img.trim() !== '').map(img => baseUrl + img) 
             })
-            if(err) return res.cc(err)
-                res.send({
-                    status:0,
-                    msg:"succeed",
-                    data:results
-                })
+            if (err) return res.cc(err)
+            res.send({
+                status: 0,
+                msg: "succeed",
+                data: results
+            })
         })
-        
+
     } catch (err) {
         console.log('数据库错误详情:', err)
         res.cc(err)

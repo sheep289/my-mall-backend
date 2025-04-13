@@ -46,6 +46,9 @@ app.use('/page', homeRouter)
 const detailRouter = require('./router/detail_page')
 app.use('/api', detailRouter)
 
+// 导入购物车路由模块
+const cartRouter = require('./router/cart')
+app.use('/my',cartRouter)
 
 // 错误处理中间件（捕获验证错误信息，并响应给客户端）
 app.use((err, req, res, next) => {

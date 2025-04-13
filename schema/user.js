@@ -4,6 +4,9 @@ const joi = require('joi')
 // 定义用户名和密码的验证规则
 const username = joi.string().pattern(/^1[3-9]\d{9}$/).required()
 
+// 用户名
+const nickname = joi.string().pattern(/^[\u4e00-\u9fa5A-Za-z0-9_]{2,20}$/)
+
 // 密码验证规则
 const  password = joi.string().pattern(/^[\S]{6,12}$/).required()
 
@@ -11,6 +14,7 @@ const  password = joi.string().pattern(/^[\S]{6,12}$/).required()
 exports.user_schema = {
     body:{
         username,
-        password
+        password,
+        nickname
     }
 }

@@ -1,5 +1,5 @@
 // 详情页模块
-const { goodsDetailPageHandle,goodsCommentHandle } = require('../router_handler/detail_page')
+const { goodsDetailPageHandle,goodsCommentHandle } = require('../router_handle/detail_page')
 const express = require('express')
 const router = express.Router()
 

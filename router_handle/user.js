@@ -7,6 +7,7 @@ require('dotenv').config() //加载配置环境
 // 注册路由处理函数
 exports.register = (req, res) => {
     const userInfo = req.body
+    const nickname = req.body.nickname || null
     const sql = 'select * from users where username=?'
     db.query(sql, [userInfo.username], (err, results) => {
         if (err) return res.cc(err)
@@ -18,7 +19,7 @@ exports.register = (req, res) => {
 
         // 将合法的用户信息插入到数据库中
         const insertSql = 'insert into users set ?'
-        db.query(insertSql, { username: userInfo.username, password: userInfo.password }, (err, results) => {
+        db.query(insertSql, { username: userInfo.username, password: userInfo.password, nickname }, (err, results) => {
             if (err) return res.cc(err)
 
             // 判断影响行数是否为 1 
@@ -50,10 +51,13 @@ exports.login = (req, res) => {
         const token = jwt.sign(user, process.env.JWT_PRIVATEKEY, { expiresIn: process.env.EXPIRESIN })
 
         res.send({
-            status:0,
-            message:'登录成功',
+            status: 0,
+            message: '登录成功',
             // 为了方便客户端使用 Token，在服务器端直接拼接上 Bearer 的前缀
-            token:'Bearer ' + token
+            data: {
+                token: 'Bearer ' + token,
+                userId: user.id
+            }
         })
     })
 

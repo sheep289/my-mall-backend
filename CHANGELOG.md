@@ -96,3 +96,27 @@
     -5 查询到后 处理数据 在响应给客户端，时间与脱敏电话用要处理
 
 
+## 5.将商品添加到购物车 post my/add/cart
+    -1.创建接口  需在请求头携带token权证
+    -2 该接口请求时需要token权证 ，通过jwt 会见解析好的数据挂载到req.auto身上，可以通过req.auto.id拿到用户id
+    -3 客户端需要传goodsId,specValueIds:[颜色，内存],quantity  分别对应商品ID 商品规格值，商品数量
+    -4 分别定义dql语句：
+        4.1写入购物车语句（cart）:记录哪个用户添加了购物车
+        4.2写入购物车关联表语句（cart_specs） :记录用户选择哪个规格，方便后续查询将购物车数据响应给客户端，
+            参数1：carts表中的id字段，
+            参数2: 客户端携带过来的specValueIds值，利用map方法，分别增加两条数据
+            dql语句：insert into cart_specs (cart_id, spec_value_id) 
+            values ?
+            循环逻辑：[specValueIds.map(specId => [results.insertId, specId])]   
+            数据库表中将会插入2条数据：cards.id , 颜色规格值，card.id,内存规格值。 
+            注意：cards的值通过第一个写入购物车语句resuls返回的对象中inserId属性
+    -5 如果用户多次将同一个商品添加到购物车，则无需创建新的含，而是给该商品的quantity + 1 
+        insert into carts (user_id, goods_id, quantity)
+        values (?, ?, ?)
+        on DUPLICATE KEY UPDATE quantity = quantity + 1;
+
+
+## 6.将客户的购物车商品信息响应给客户端接口 get my/add/cart
+    -1.创建接口， 需在请求携带token权证
+    -2.该接口请求时需要token权证 ，通过jwt 会见解析好的数据挂载到req.auto身上，可以通过req.auto.id拿到用户id
+

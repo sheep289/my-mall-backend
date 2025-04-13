@@ -2,7 +2,7 @@
 const express = require('express')
 // 导入用户路由处理函数对应模块
 const router = express.Router()
-const login_handle = require('../router_handler/user')
+const login_handle = require('../router_handle/user')
 
 // 导入验证表单数据中间件
 const expressJoi = require('@escook/express-joi')

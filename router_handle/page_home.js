@@ -115,15 +115,21 @@ exports.pageHomeGoodsListHandle = async (req, res) => {
 
         // 计算offset(偏移量)
         const offset = (page - 1) * limit
-
-        const dql = `select g.id,g.title,g.price_min,g.price_max,g.stock,g.sales,gi.goods_id,gi.url as "goods_cover_image" from goods g join goods_images gi on g.id = gi.goods_id and gi.type = "cover" order by g.created_at desc limit ? offset ?`
+        const dql = `
+            select g.id,
+            g.title,g.price_min,g.price_max,g.stock,g.sales,gi.goods_id,gi.url as 'goods_cover_image'
+            from goods g
+            left join goods_images gi on g.id = gi.goods_id
+            and gi.type = 'cover'
+            group by g.id limit ? offset ?
+        `
 
         db.query(dql, [limit, offset], (err, results) => {
             if (err) return res.cc(err)
             res.send({
                 status: 0,
-                msg:'succeed',
-                type:'商品',
+                msg: 'succeed',
+                type: '商品',
                 data: results
             })
         })

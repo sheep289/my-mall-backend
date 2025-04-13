@@ -1,5 +1,5 @@
 // 这是获取首页信息接口
-const { pageHomeBannerHandle,uploadBanners,uploadNav,pageHomeNavHandle,pageHomeGoodsListHandle } = require('../router_handler/page_home')
+const { pageHomeBannerHandle,uploadBanners,uploadNav,pageHomeNavHandle,pageHomeGoodsListHandle } = require('../router_handle/page_home')
 const express = require('express')
 const router = express.Router()
 
