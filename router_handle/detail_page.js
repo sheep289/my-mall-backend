@@ -48,7 +48,7 @@ exports.goodsDetailPageHandle = async (req, res) => {
                 detailData.specs = results2
                 res.send({
                     status: 0,
-                    msg: "succeed",
+                    message: "succeed",
                     data: detailData
                 })
             })
@@ -90,7 +90,7 @@ exports.goodsCommentHandle = async (req, res) => {
             if (err) return res.cc(err)
             res.send({
                 status: 0,
-                msg: "succeed",
+                message: "succeed",
                 data: results
             })
         })

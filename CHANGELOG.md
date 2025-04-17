@@ -96,7 +96,7 @@
     -5 查询到后 处理数据 在响应给客户端，时间与脱敏电话用要处理
 
 
-## 5.将商品添加到购物车 post my/add/cart
+## 5.将商品添加到购物车 post my/cart/add
     -1.创建接口  需在请求头携带token权证
     -2 该接口请求时需要token权证 ，通过jwt 会见解析好的数据挂载到req.auto身上，可以通过req.auto.id拿到用户id
     -3 客户端需要传goodsId,specValueIds:[颜色，内存],quantity  分别对应商品ID 商品规格值，商品数量
@@ -116,7 +116,47 @@
         on DUPLICATE KEY UPDATE quantity = quantity + 1;
 
 
-## 6.将客户的购物车商品信息响应给客户端接口 get my/add/cart
+## 6.将客户的购物车商品信息响应给客户端接口 get my/cart/list
     -1.创建接口， 需在请求携带token权证
     -2.该接口请求时需要token权证 ，通过jwt 会见解析好的数据挂载到req.auto身上，可以通过req.auto.id拿到用户id
+    -3 返回对象形式是数组包裹着对象，对象中是一个商品的信息shuju
+
+## 7. 创建修改购车商品数量接口
+    -1.创建接口，接受客户端携带过来的cartId ，修改quantity数量
+    -2. 使用ddl 更新语句，根据用户id以及商品id对quantity进行更新
+
+## 6.删除购物车商品
+    -1给数据库中的carts表新加了2个字段：states(逻辑管理商品删除，如果用户在购物车中删除该商品，则status为1) delete_at删除时间
+    -2 由于后续添加的status字段，所以前面一些关于购物车的接口中dql语句需要做个小修改，例如返回购物车列表数据需要添加一个判断条件：and carts.status = 0
+    -3 添加购物车接口dql语句调整
+```JavaScript
+        // 原先的
+        const addDql = `
+            insert into carts (user_id, goods_id, specs, quantity)
+            values (?, ?, ?,?)
+            on DUPLICATE KEY UPDATE quantity = quantity + ?;
+        `
+        // 表中添加status字段后的 
+        INSERT INTO carts (user_id, goods_id, specs, quantity)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+        quantity = CASE WHEN status = 1 THEN VALUES(quantity) ELSE quantity + VALUES(quantity) END,
+        status = 0,
+        deleted_at = NULL; 
+```
+
+    - 4 删除的业务逻辑：
+        前端携带需要删除的carts是一个数组，每一项代表着要删除的商品
+        思路：这里不使用物理删除语句delete, 而是使用逻辑删除的方法，给要删除的商品状态status标记为1，所以这里用update 语句 更新status状态
+        由于穿过来的是个数组，这里利用到 in  例如：where user = 5 and id in (这里是占位符数量取决去数组长度)
+            MySQL 可能不支持直接传数组，需要手动拼接 ? （使用join方法）
+代码：
+```JavaScript
+        const placeholders  = cartIds.map(() => '?').join(',')
+        // 这里不使用物理删除（直接删除） 而是逻辑删除（通过status标记）
+        const dql = `update carts set status = 1,deleted_at = NOW()
+                    where user_id = ? and id in (${placeholders}) `
+
+```
+
 

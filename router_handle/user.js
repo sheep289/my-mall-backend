@@ -12,7 +12,8 @@ exports.register = (req, res) => {
     db.query(sql, [userInfo.username], (err, results) => {
         if (err) return res.cc(err)
         // 判断数据库又没有重复的用户名
-        if (results.length > 0) return res.cc('用户名被占用，请更换其他用户名！')
+        // if (results.length > 0) return res.cc('用户名被占用，请更换其他用户名！')
+        if(results.length > 0) return res.cc('注册失败，该手机号已注册！')
 
         // 用户名可以用，则对密码进行加密存储到数据库中 将加密好的密码重新挂载到userInfo.password身上
         userInfo.password = bcrypt.hashSync(userInfo.password, 10)
@@ -39,11 +40,11 @@ exports.login = (req, res) => {
     db.query(sql, userInfo.username, (err, results) => {
         if (err) return res.cc(err)
 
-        if (results.length !== 1) return res.cc('该用户未注册！')
+        if (results.length !== 1) return res.cc('该手机号未注册！')
 
         // 判断该用户账号密码是否正确 对比客户端输入密码与数据库的密码是否一致
         const comparePwd = bcrypt.compareSync(userInfo.password, results[0].password)
-        if (!comparePwd) return res.cc('用户名或者密码错误')
+        if (!comparePwd) return res.cc('用户名或密码错误')
 
         // 通过 ES6 的高级语法，快速剔除 除了 用户唯一标识与 用户角色 的其他值：
         const user = { ...results[0], password: '', avatar: '', created_time: '', username: '', email: '' }

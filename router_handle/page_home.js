@@ -19,7 +19,7 @@ exports.uploadBanners = async (req, res) => {
             if (results.affectedRows !== 1) return res.cc('上传失败')
             res.send({
                 status: 0,
-                msg: '上传成功'
+                message: '上传成功'
             })
         })
 
@@ -42,7 +42,7 @@ exports.uploadNav = async (req, res) => {
             if (results.affectedRows !== 1) return res.cc('上传失败')
             res.send({
                 status: 0,
-                msg: '上传成功'
+                message: '上传成功'
             })
         })
     } catch (err) {
@@ -63,7 +63,7 @@ exports.pageHomeBannerHandle = async (req, res) => {
             if (err) return res.cc(err)
             res.send({
                 status: 0,
-                msg: 'succeed',
+                message: 'succeed',
                 name: '轮播图',
                 data_url: results.map(item => baseUrl + item.imageUrl)
             })
@@ -91,7 +91,7 @@ exports.pageHomeNavHandle = async (req, res) => {
             })
             res.send({
                 status: 0,
-                msg: 'succeed',
+                message: 'succeed',
                 name: '导航栏',
                 data: results
             })
@@ -128,7 +128,7 @@ exports.pageHomeGoodsListHandle = async (req, res) => {
             if (err) return res.cc(err)
             res.send({
                 status: 0,
-                msg: 'succeed',
+                message: 'succeed',
                 type: '商品',
                 data: results
             })
