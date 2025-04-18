@@ -55,7 +55,7 @@ exports.goodsDetailPageHandle = async (req, res) => {
 
         })
     } catch (err) {
-        console.log('数据库错误详情:', err)
+        console.error('数据库错误详情:', err)
         res.cc(err)
     }
 }
@@ -96,7 +96,7 @@ exports.goodsCommentHandle = async (req, res) => {
         })
 
     } catch (err) {
-        console.log('数据库错误详情:', err)
+        console.error('数据库错误详情:', err)
         res.cc(err)
     }
 }

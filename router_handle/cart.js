@@ -12,7 +12,8 @@ exports.cartHandle = async (req, res) => {
 
         // 3.1 对数据进行校验
         if (!goodsId || isNaN(goodsId)) return res.cc('NaN或者NULL，请输入正确的goodsId')
-        if (!specValueIds || typeof !specValueIds === 'object') return res.cc('需要传入对象{color: id值}')
+        // if (!specValueIds || typeof !specValueIds === 'object') return res.cc('需要传入对象{color: id值}')
+        if (!specValueIds) return res.cc('请选择规格')
         if (isNaN(quantity)) return res.cc('NaN,该数据类型需为Number')
 
         // 当用户点击添加购物车时，需在数据库中记录该用户的添加的商品
@@ -63,7 +64,7 @@ exports.cartHandle = async (req, res) => {
         })
 
     } catch (err) {
-        console.log('数据库错误详情:', err)
+        console.error('数据库错误详情:', err)
         res.cc(err)
     }
 }
@@ -151,8 +152,7 @@ exports.cartClearHandle = async (req, res) => {
         // 获取需要删除cartid(是一个数组)
         const cartIds = req.body.cartIds
         const userId = req.auth.id
-
-        if(!Array.isArray(cartIds)) return res.cc('数据类型需为数组Array')
+        if(!Array.isArray(cartIds)) return res.cc('操作失败！')
 
         // 占位符数量
         const placeholders  = cartIds.map(() => '?').join(',')

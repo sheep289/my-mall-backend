@@ -50,6 +50,10 @@ app.use('/api', detailRouter)
 const cartRouter = require('./router/cart')
 app.use('/my',cartRouter)
 
+// 导入订单结算路由模块
+const payRouter = require('./router/pay')
+app.use('/my',payRouter)
+
 // 错误处理中间件（捕获验证错误信息，并响应给客户端）
 app.use((err, req, res, next) => {
     if (err instanceof joi.ValidationError) return res.cc(err)

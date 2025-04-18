@@ -1,7 +1,7 @@
-// 旧模块：原生 mysql（回调）
-const mysql = require('mysql')
+// 新模块：mysql2/promise（异步）
+const mysqlAsync = require('mysql2/promise');
 require('dotenv').config() //加载配置环境
-const db = mysql.createPool({
+const db = mysqlAsync.createPool({
     host:process.env.DB_HOST,
     user:process.env.DB_USER,
     password:process.env.DB_PASSWORD,
