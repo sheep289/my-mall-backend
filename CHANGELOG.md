@@ -168,7 +168,20 @@
         cart： 用户需要携带购 物车id（为数组），用户id 
             如果是购物车结算，根据用户携带的购物车id 响应对应的商品数据
 
-### 2. 用户点击结算
+### 提供地区级联选择数据（添加地址地区级联选择数据）
+1. 由于数据太大，不建议一次响应 而是创建对应的省市区api
+    接口1（省）：响应全部的省份给客户端
+    接口2（市）：前端将region_id通过动态传参传递，在回调函数中调用req.params方法可以拿到动态的region_id 查询数据 返回对应的市数据
+    接口3（区）：同样的道理，动态传递region_id,通过req.params获取， 在根据市的region_id 查询数据 响应给客户端
+
+2. 接口4（添加地址api）post /my/add/address
+3. 接口5（修改地址api） 主要跟据客户端携带的address_id以及需要更新的form对象中的new内容
+4. 接口6 （设置默认地址） 根据客户端携带的addressId进行操作，例如：用户将addressId为9的地址设为默认，则dql语法：update user_address_info  set is_default = case when id = ? then 1 else 0 end where user_id = ? ;
+
+如果id 相等的 is_default值为1,不想等赋值为0（一个用户所有地址只允许一个默认地址，所以更新一个为1，则其它都为0）
+
+
+### 3. 用户点击结算
 1. 创建接口  
 2. 思路： 用户调用该api，将对应的数据新增/更新到MySQL中，
 

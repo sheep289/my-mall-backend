@@ -54,11 +54,15 @@ app.use('/my',cartRouter)
 const payRouter = require('./router/pay')
 app.use('/my',payRouter)
 
+// 导入地区数据模块(地址)
+const addressRouter = require('./router/address')
+app.use('/my',addressRouter)
+
 // 错误处理中间件（捕获验证错误信息，并响应给客户端）
 app.use((err, req, res, next) => {
     if (err instanceof joi.ValidationError) return res.cc(err)
     // token验证失败的错误
-    if (err.name === 'UnauthorizedError') return res.cc('无效的认证凭证', 401)
+    if (err.name === 'UnauthorizedError') return res.cc('登录信息过期', 401)
     //未知错误信息
     res.cc('未知错误')
 })
