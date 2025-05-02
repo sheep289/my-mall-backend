@@ -4,7 +4,13 @@ const express = require('express')
 const router = express.Router()
 
 // 付款订单接口（响应给用户选哟付款的商品数据）
-const { checkoutOrderhandle } = require('../router_handle/pay')
+const { checkoutOrderhandle,handelPayMode,handleSubmit } = require('../router_handle/pay')
 router.get('/checkout/order',checkoutOrderhandle)
+
+// 支付方式
+router.get('/pay/mode',handelPayMode)
+
+// 提交订单
+router.post('/checkout/submit',handleSubmit)
 
 module.exports = router
