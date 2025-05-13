@@ -58,6 +58,10 @@ app.use('/my',payRouter)
 const addressRouter = require('./router/address')
 app.use('/my',addressRouter)
 
+// 导入用户信息路由模块
+const userInfoRouter = require('./router/userInfo')
+app.use('/my',userInfoRouter)
+
 // 错误处理中间件（捕获验证错误信息，并响应给客户端）
 app.use((err, req, res, next) => {
     if (err instanceof joi.ValidationError) return res.cc(err)

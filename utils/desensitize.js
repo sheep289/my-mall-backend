@@ -1,4 +1,3 @@
-const { emit } = require("../db")
 
 // 脱敏函数模块
 function desensitizePhone(username){

@@ -1,4 +1,5 @@
 const db = require('../db/mysql2')
+require('dotenv').config() //加载配置环境
 // 1.响应订单商品
 exports.checkoutOrderhandle = async (req, res) => {
     try {
@@ -148,8 +149,7 @@ exports.handelPayMode = async (req, res) => {
         // 3.3将余额赋值到对应的支付方式低下
         results1[index].balance = obj.balance
 
-        const baseUrl = 'http://127.0.0.1/'   // 根据实际部署环境调整
-        results1.forEach(item => item.type_image = baseUrl + item.type_image)
+        results1.forEach(item => item.type_image = process.env.baseUrl + item.type_image)
 
         res.send({
             status: 0,
@@ -169,6 +169,7 @@ exports.handleSubmit = async (req, res) => {
         // 获取用户余额
         const dql4 = `SELECT * FROM user_balances WHERE user_id = ?`
         const [user_balance] = await db.query(dql4, [userId])
+        user_balance.forEach(item => item.balance = parseFloat(item.balance))
         const obj = user_balance.find(item => item.user_id === userId)
 
         // 如果客户端选择的支付方式不等1（余额支付），则结束程序（因为其它支付方式暂未开通，只支持余额支付）

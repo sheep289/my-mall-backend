@@ -3,6 +3,7 @@ const db = require('../db/index')
 const TIME = require('../utils/dateFormat')
 // 导入脱敏手机号模块
 const desensitization = require('../utils/desensitize')
+require('dotenv').config() //加载配置环境
 // 详情页商品以及规处理模块
 exports.goodsDetailPageHandle = async (req, res) => {
     try {
@@ -70,7 +71,6 @@ exports.goodsCommentHandle = async (req, res) => {
         if (isNaN(limit)) {
             throw new Error("页面和限制必须是数字");
         }
-        const baseUrl = 'http://127.0.0.1/'   // 根据实际部署环境调整
         const dql = `
             select
         u.username as 'username',u.nickname 'nick_name',u.avatar 'head_portrait',u.default_avatar 'default_head_portrait',ugc.goods_id 'goodsID',ugc.goods_comment as'goods_comment',JSON_ARRAY(ugc.comment_images) 'comment_images',ugc.rating 'goods_rating',ugc.created_at 'comment_timer'
@@ -83,9 +83,9 @@ exports.goodsCommentHandle = async (req, res) => {
             results.forEach(item => {
                 item.comment_timer = TIME.dateFormat(item.comment_timer)
                 item.username = desensitization.desensitizePhone(item.username)
-                item.default_head_portrait = baseUrl + item.default_head_portrait
-                item.head_portrait = item.head_portrait ? baseUrl + item.head_portrait : item.head_portrait
-                item.comment_images = JSON.parse(item.comment_images).filter(img => img != null && img.trim() !== '').map(img => baseUrl + img) 
+                item.default_head_portrait = process.env.baseUrl + item.default_head_portrait
+                item.head_portrait = item.head_portrait ? process.env.baseUrl + item.head_portrait : item.head_portrait
+                item.comment_images = JSON.parse(item.comment_images).filter(img => img != null && img.trim() !== '').map(img => process.env.baseUrl + img) 
             })
             if (err) return res.cc(err)
             res.send({

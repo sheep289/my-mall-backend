@@ -222,3 +222,29 @@
 
         */
 
+
+## 用户信息与用户下单信息
+### 返回对应的用户信息
+    1. 创建api  响应客户端用户的基本信息
+        脱敏手机号
+        昵称
+        账户余额
+### 响应订单信息
+    思路：根据携带的不同参数类型响应不同的商品数据
+    参数有： 全部：all  待付款：payment  代发货：delivery  待收货：received  退待评价  退款/售后：refund   待评价：evaluated
+    全部：all  待付款：pending  待发货 paid  待收货： shipped   退款： completed    评价：暂无
+     2. 根据客户端携带过来的type类型 获取对应订单信息 响应给客户端
+       思路：判断type类型是否为all 如果为all 将所有的type类型以数组的形式赋值给type  如果不是，则无需重新赋值：
+            1.先将所有的订单查询出来（为数组）
+            2.通过订单表id查询order_items商品(通过订单id查询对应的订单商品订单商品)
+               2.1 分别获取buyNow与carts的id -----由于查询出来的数据的是所有的商品，需要进行抽离，将buynow与cart的商品进行抽离，分别放在不同的数组中(buyNowIds与cartIds)
+               2.2再通过对应的id查询表中的商品数据（buyNowData与cartsData）
+               2.3 最后将查询出来的商品数据进行合并（mergeArray）
+            3. 将result1(订单下的商品（oreder_items表）)与mergeArray与 result(order订单表)  进行合并
+            4.最后通过：
+                const handleData = results.map(order => {
+                return mergedData.filter(item => item.order_id === order.id)
+            })
+            该handleData 常量接收 处理好数据结构（最后要响应给客户端的数据）
+        
+    3. 根据不同的type（除all）响应不同的数据

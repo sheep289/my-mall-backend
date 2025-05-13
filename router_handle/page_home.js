@@ -1,7 +1,6 @@
 // 首页接口处理函数模块
-
 const db = require('../db/index')
-
+require('dotenv').config() //加载配置环境
 // 轮播图
 exports.uploadBanners = async (req, res) => {
     try {
@@ -54,8 +53,6 @@ exports.uploadNav = async (req, res) => {
 exports.pageHomeBannerHandle = async (req, res) => {
     try {
         const limit = parseInt(req.body.limit) || 4  //默认每一页4条
-
-        const baseUrl = 'http://127.0.0.1/'   // 根据实际部署环境调整
         // const imageUrl = baseUrl + '/pageHome_img/' + req.file.filename   // 访问路径
 
         const dql = 'select image_url as imageUrl from home_banners order by id desc limit ?'
@@ -65,7 +62,7 @@ exports.pageHomeBannerHandle = async (req, res) => {
                 status: 0,
                 message: 'succeed',
                 name: '轮播图',
-                data_url: results.map(item => baseUrl + item.imageUrl)
+                data_url: results.map(item => process.env.baseUrl + item.imageUrl)
             })
         })
 
@@ -81,13 +78,12 @@ exports.pageHomeBannerHandle = async (req, res) => {
 exports.pageHomeNavHandle = async (req, res) => {
     try {
         const limit = parseInt(req.body.limit) || 12
-        const baseUrl = 'http://127.0.0.1/'
         const dql = 'select name,type,icon_url,categories_id from home_nav limit ? '
         await db.query(dql, limit, (err, results) => {
             if (err) return res.cc(err)
             // 用forEach 给每一个对象里面的icon_url添加前缀 baseurl
             results.forEach(item => {
-                item.icon_url = baseUrl + item.icon_url
+                item.icon_url = process.env.baseUrl + item.icon_url
             })
             res.send({
                 status: 0,
