@@ -18,8 +18,7 @@ exports.handleUserInfo = async (req, res) => {
         join user_balances ub on u.id = ub.user_id
         where id = ?;
             `
-    const [results] = await db.query(dlq, [userId])
-
+    const [results] = await db.query(dlq, [userId])    
     // 将订单状态响应给回去
     const handleUserInfo = {
       ...results[0],
@@ -37,14 +36,17 @@ exports.handleUserInfo = async (req, res) => {
   }
 }
 
+// 用户订单信息
 exports.handleOrderList = async (req, res) => {
   const userId = req.auth.id
   // 判断type类型是否为all 如果为all 将所有的type类型以数组的形式赋值给type  如果不是，则无需重新赋值
+  const [rows] = await db.query(
+    `select JSON_ARRAYAGG(type) as 'type' from  order_status`
+  )
   const type = req.query.type || req.body.type
-  const newType =
-    type === "all"
-      ? ["pending", "paid", "shipped", "completed", "canceled"]
-      : [type]
+  // ["pending", "paid", "shipped", "completed", "canceled"]
+  rows[0].type.push("cancelled")
+  const newType = type === "all" ? rows[0].type : [type]
 
   const placeholders9 = newType.map(() => "?").join(",")
 
@@ -54,7 +56,8 @@ exports.handleOrderList = async (req, res) => {
                 select
                     *
                 from orders
-                where user_id = ? and status in (${placeholders9})
+                where user_id = ? and status in (${placeholders9}) 
+                and order_state = 0
                 order by created_at desc
                 limit 10
             `
@@ -78,8 +81,12 @@ exports.handleOrderList = async (req, res) => {
         item.status_text = "已发货"
       } else if (item.status === "completed") {
         item.status_text = "已完成"
-      } else {
+      } else if (item.status === "cancelled") {
         item.status_text = "取消了"
+      } else if (item.status === "refund") {
+        item.status_text = "退款/售后"
+      } else {
+        item.status_text = "暂无"
       }
     })
 
@@ -112,6 +119,7 @@ exports.handleOrderList = async (req, res) => {
                        g.id as 'goods_id',
                        b.id as 'buyNow_id',
                        b.quantity,
+                       b.specs,
                        g.title as 'goods_title',
                        gi.url as 'goods_coverImg',
                        gs.image_url 'color_image',
@@ -198,6 +206,8 @@ exports.handleOrderList = async (req, res) => {
         quantity: matchedDetail?.quantity,
         color_name: matchedDetail?.color_name,
         memory_name: matchedDetail?.memory_name,
+        specValueIds: matchedDetail?.specs,
+        cart_id: matchedDetail?.cart_id,
       }
     })
 
@@ -208,6 +218,55 @@ exports.handleOrderList = async (req, res) => {
     res.send({
       status: 0,
       data: handleData,
+    })
+  } catch (error) {
+    console.error("数据库错误详情:", error)
+  }
+}
+
+// 用户取消订单接口
+exports.handleCancelOrder = async (req, res) => {
+  const userId = req.auth.id
+  const { orderId } = req.body
+  try {
+    await db.query(
+      `update orders set status = 'cancelled' ,created_at = now() where user_id = ? and id = ?`,
+      [userId, orderId]
+    )
+    // 获取购买时的价格
+    const [buyPrice] = await db.query(
+      `select total_amount from orders where  user_id = ? and id = ?`,
+      [userId, orderId]
+    )
+    // 用户的余额加上价格（退款）
+    await db.query(
+      `update user_balances set balance = balance + ? where user_id = ?`,
+      [parseFloat(buyPrice[0].total_amount), userId]
+    )
+
+    res.send({
+      status: 0,
+      message: "success",
+    })
+  } catch (error) {
+    console.error("数据库错误详情:", error)
+  }
+}
+
+// 逻辑删除订单
+exports.handleOrderDelete = async (req, res) => {
+  try {
+    const userId = req.auth.id
+    // 要删除的订单id
+    const { orderId } = req.body
+
+    db.query(`update orders set order_state = 1 where user_id = ? and id = ?`, [
+      userId,
+      orderId,
+    ])
+    res.send({
+      status:0,
+      message:'删除成功'
     })
   } catch (error) {
     console.error("数据库错误详情:", error)

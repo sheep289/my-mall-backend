@@ -6,34 +6,33 @@ const jwt = require("jsonwebtoken")
 
 require("dotenv").config() //加载配置环境
 // 注册路由处理函数
-exports.register = (req, res) => {
+exports.register = async (req, res) => {
   const userInfo = req.body
   const nickname = req.body.nickname || null
-  const sql = "select * from users where username=?"
-  db.query(sql, [userInfo.username], (err, results) => {
-    if (err) return res.cc(err)
-    // 判断数据库又没有重复的用户名
-    // if (results.length > 0) return res.cc('用户名被占用，请更换其他用户名！')
+  try {
+    const [results] = await db2.query(`select * from users where username=?`, [
+      userInfo.username,
+    ])
     if (results.length > 0) return res.cc("注册失败，该手机号已注册！")
-
     // 用户名可以用，则对密码进行加密存储到数据库中 将加密好的密码重新挂载到userInfo.password身上
     userInfo.password = bcrypt.hashSync(userInfo.password, 10)
 
     // 将合法的用户信息插入到数据库中
-    const insertSql = "insert into users set ?"
-    db.query(
-      insertSql,
-      { username: userInfo.username, password: userInfo.password, nickname },
-      (err, results) => {
-        if (err) return res.cc(err)
-
-        // 判断影响行数是否为 1
-        if (results.affectedRows !== 1) return res.cc("注册用户失败失败")
-
-        res.cc("注册成功！", 0)
-      }
-    )
-  })
+    const [newRows] = await db2.query(`insert into users set ?`, {
+      username: userInfo.username,
+      password: userInfo.password,
+      nickname,
+    })
+    const userId = newRows.insertId
+    //    新增账户余额
+    await db2.query(`insert into user_balances (user_id) values (?)`, [userId])
+    res.send({
+      status: 0,
+      message: "注册成功",
+    })
+  } catch (error) {
+    console.error("数据库错误详情:", error)
+  }
 }
 
 // 抽离用户登录路由模块中的处理函数
@@ -86,8 +85,8 @@ exports.handleUserIndex = async (req, res) => {
       types: results1,
     }
     res.send({
-        status:0,
-        data:handelData
+      status: 0,
+      data: handelData,
     })
     //   types: results1
   } catch (error) {
