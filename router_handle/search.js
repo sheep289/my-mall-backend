@@ -10,7 +10,7 @@ exports.handleSearchSelect = async (req, res) => {
   try {
     if (keyword) {
       // 通过搜索查询
-      
+
       const dql = `
      select g.id,
         g.title,
@@ -27,14 +27,16 @@ exports.handleSearchSelect = async (req, res) => {
             group by g.id
             `
       const [results] = await db.query(dql, [`%${keyword}%`, `%${keyword}%`])
-      results.forEach(item => item.goods_cover_image = process.env.baseUrl + item.goods_cover_image)
-      console.log(results);
-      
+      results.forEach(
+        (item) =>
+          (item.goods_cover_image =
+            process.env.baseUrl + item.goods_cover_image)
+      )
       res.send({
         status: 0,
         data: results,
       })
-    } else {      
+    } else {
       const dql2 = `
            select g.id,
             g.title,
@@ -49,7 +51,11 @@ exports.handleSearchSelect = async (req, res) => {
                 WHERE gc.category_id = ?;
         `
       const [results] = await db.query(dql2, [categoryId])
-      results.forEach(item => item.goods_cover_image = process.env.baseUrl + item.goods_cover_image)
+      results.forEach(
+        (item) =>
+          (item.goods_cover_image =
+            process.env.baseUrl + item.goods_cover_image)
+      )
       res.send({
         status: 0,
         data: results,
@@ -73,13 +79,16 @@ exports.handleCategory = async (req, res) => {
     const [results2] = await db.query(
       `select * from categories where level = 2`
     )
+
     const handleData = results1.map((item) => ({
       ...item,
       children: results2.filter((child) => item.id === child.parent_id),
     }))
 
     handleData.forEach((element) => {
-      element.children.forEach((item) => (item.image = process.env.baseUrl + item.image))
+      element.children.forEach(
+        (item) => (item.image = process.env.baseUrl + item.image)
+      )
     })
 
     res.send({
@@ -87,6 +96,32 @@ exports.handleCategory = async (req, res) => {
       data: handleData,
     })
   } catch (error) {
+    console.error("数据库错误详情", error)
+  }
+}
+// 热销
+exports.handleCategoryProducts = async (req,res) => {
+  const type = req.query.type
+  try{
+    const [results] = await db.query(`
+      SELECT g.title AS goods_title,
+        g.id,
+        g.main_image as 'goods_cover_image',
+        g.price_min
+        FROM goods g
+        JOIN goods_categories gc ON g.id = gc.goods_id
+        JOIN categories c ON gc.category_id = c.id
+        where c.name = ?
+        order by g.sales desc
+        limit 2`,[type])
+
+        results.forEach(item => item.goods_cover_image = process.env.baseUrl + item.goods_cover_image)
+        res.send({
+          status:0,
+          data: results
+        })
+
+  }catch(error){
     console.error("数据库错误详情", error)
   }
 }
