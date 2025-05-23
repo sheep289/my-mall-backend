@@ -27,12 +27,18 @@ app.use((req, res, next) => {
 
 // 导入express-jwt中间件 用来解析token字符串
 const { expressjwt: jwt } = require('express-jwt')
-app.use(
+app.use('/my',
     jwt({
         secret: process.env.JWT_PRIVATEKEY,
         algorithms: ["HS256"],
-    }).unless({ path: [{ url: /^\/api/ },{ url: /^\/page/ }]})
+    })
 )
+// app.use(
+//     jwt({
+//         secret: process.env.JWT_PRIVATEKEY,
+//         algorithms: ["HS256"],
+//     }).unless({ path: [{ url: /^\/api/ },{ url: /^\/page/ }]})
+// )
 
 // 导入用户路由模块
 const userRouter = require('./router/user')
