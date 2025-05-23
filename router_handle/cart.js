@@ -1,4 +1,5 @@
 const db = require('../db/index')
+require('dotenv').config() //加载配置环境
 // 将商品添加到购物车接口
 exports.cartHandle = async (req, res) => {
     try {
@@ -79,7 +80,7 @@ exports.cartListHandle = async (req, res) => {
             c.goods_id,
             g.title AS goods_title,
             c.quantity,
-            gi.url goods_coverImg,
+            g.main_image as 'goods_coverImg',
             color_gs.image_url AS color_image,
             color_gs.value AS color_name,
             memory_gs.value AS memory_name,
@@ -98,8 +99,6 @@ exports.cartListHandle = async (req, res) => {
             ON memory_gs.id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.memory'))
             AND memory_gs.goods_id = c.goods_id
             AND memory_gs.spec_id = 2
-            JOIN goods_images gi ON g.id = gi.goods_id
-            AND gi.type = 'cover'
             WHERE c.user_id = ? AND c.status = 0
             ORDER BY c.id DESC
       `
@@ -107,7 +106,7 @@ exports.cartListHandle = async (req, res) => {
         // 执行查询
         await db.query(sql, [userId], (err, results) => {
             if (err) return res.cc(err)
-
+                results.forEach(item => item.goods_coverImg = process.env.baseUrl + item.goods_coverImg)
             res.send({
                 status: 0,
                 data: results

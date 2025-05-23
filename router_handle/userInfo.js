@@ -121,7 +121,7 @@ exports.handleOrderList = async (req, res) => {
                        b.quantity,
                        b.specs,
                        g.title as 'goods_title',
-                       gi.url as 'goods_coverImg',
+                       g.main_image as 'goods_coverImg',
                        gs.image_url 'color_image',
                    (SELECT value FROM goods_specs
                        WHERE goods_id = g.id
@@ -133,14 +133,14 @@ exports.handleOrderList = async (req, res) => {
                            AND id = JSON_UNQUOTE(JSON_EXTRACT(b.specs, '$.memory'))) AS memory_name
                        from
                        goods g
-                   left join goods_images gi on g.id = gi.goods_id
                    left join goods_specs gs on g.id = gs.goods_id
                    left join  buynow b on g.id = b.goods_id
-                   where gi.type = 'cover' and b.id in (${placeholders2})
+                   where b.id in (${placeholders2})
                    group by b.id;
                    `
 
       const [results] = await db.query(dql4, [...buyNowIds])
+      results.forEach(item => item.goods_coverImg = process.env.baseUrl + item.goods_coverImg)
       buyNowData = results
     }
 
@@ -157,7 +157,7 @@ exports.handleOrderList = async (req, res) => {
                 c.goods_id,
                 g.title AS goods_title,
                 c.quantity,
-                gi.url goods_coverImg,
+                g.main_image goods_coverImg,
                 color_gs.image_url AS color_image,
                 color_gs.value AS color_name,
                 memory_gs.value AS memory_name
@@ -171,11 +171,10 @@ exports.handleOrderList = async (req, res) => {
                 ON memory_gs.id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.memory'))
                 AND memory_gs.goods_id = c.goods_id
                 AND memory_gs.spec_id = 2
-                JOIN goods_images gi ON g.id = gi.goods_id
-                AND gi.type = 'cover'
                 WHERE c.user_id = ? AND c.id in (${placeholders3})
             `
       const [results] = await db.query(dql5, [userId, ...cartIds])
+      results.forEach(item => item.goods_coverImg = process.env.baseUrl + item.goods_coverImg)
       cartsData = results
     }
 

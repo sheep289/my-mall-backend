@@ -77,7 +77,7 @@ exports.checkoutOrderhandle = async (req, res) => {
                 c.goods_id,
                 g.title AS goods_title,
                 c.quantity,
-                gi.url goods_coverImg,
+                g.main_image goods_coverImg,
                 color_gs.image_url AS color_image,
                 color_gs.value AS color_name,
                 memory_gs.value AS memory_name,
@@ -96,12 +96,11 @@ exports.checkoutOrderhandle = async (req, res) => {
                 ON memory_gs.id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.memory'))
                 AND memory_gs.goods_id = c.goods_id
                 AND memory_gs.spec_id = 2
-                JOIN goods_images gi ON g.id = gi.goods_id
-                AND gi.type = 'cover'
                 WHERE c.user_id = ? AND c.id in (${placeholders})
                 ORDER BY c.id DESC
             `
             const [results] = await db.query(getCarDatatDql, [userId, ...cartIds])
+            results.forEach(item => item.goods_coverImg = process.env.baseUrl + item.goods_coverImg)
             res.send({
                 status: 0,
                 mode: 'cart',

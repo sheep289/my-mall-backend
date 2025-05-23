@@ -113,15 +113,20 @@ exports.pageHomeGoodsListHandle = async (req, res) => {
         const offset = (page - 1) * limit
         const dql = `
             select g.id,
-            g.title,g.price_min,g.price_max,g.stock,g.sales,gi.goods_id,gi.url as 'goods_cover_image'
-            from goods g
-            left join goods_images gi on g.id = gi.goods_id
-            and gi.type = 'cover'
-            group by g.id limit ? offset ?
+            g.title,
+            g.price_min,
+            g.price_max,
+            g.stock,
+            g.sales,
+            g.id as goods_id,
+            g.main_image as 'goods_cover_image'
+                from goods g
+                group by g.id limit ? offset ?
         `
 
         db.query(dql, [limit, offset], (err, results) => {
             if (err) return res.cc(err)
+            results.forEach(item => item.goods_cover_image = process.env.baseUrl + item.goods_cover_image)
             res.send({
                 status: 0,
                 message: 'succeed',

@@ -10,6 +10,7 @@ exports.handleSearchSelect = async (req, res) => {
   try {
     if (keyword) {
       // 通过搜索查询
+      
       const dql = `
      select g.id,
         g.title,
@@ -22,31 +23,33 @@ exports.handleSearchSelect = async (req, res) => {
             from goods g
             left join goods_categories gc on g.id = gc.goods_id
             left join categories c on gc.category_id = c.id
-            where g.title like '%手机%' or c.name like  '%手机%'
+            where g.title like ? or c.name like  ?
             group by g.id
             `
       const [results] = await db.query(dql, [`%${keyword}%`, `%${keyword}%`])
       results.forEach(item => item.goods_cover_image = process.env.baseUrl + item.goods_cover_image)
+      console.log(results);
+      
       res.send({
         status: 0,
         data: results,
       })
-    } else {
+    } else {      
       const dql2 = `
            select g.id,
             g.title,
             g.price_min,
             g.price_max,
+            g.main_image as 'goods_cover_image',
             g.stock,
             g.sales,
-            gi.goods_id,
-            gi.url as 'goods_cover_image'
+            g.id as 'goods_id' 
                 FROM goods g
                 JOIN goods_categories gc ON g.id = gc.goods_id
-                join goods_images gi on g.id = gi.goods_id and gi.type = 'cover'
                 WHERE gc.category_id = ?;
         `
       const [results] = await db.query(dql2, [categoryId])
+      results.forEach(item => item.goods_cover_image = process.env.baseUrl + item.goods_cover_image)
       res.send({
         status: 0,
         data: results,
