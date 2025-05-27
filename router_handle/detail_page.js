@@ -1,102 +1,193 @@
-const db = require('../db/index')
-// 导入指定格式时间模块
-const TIME = require('../utils/dateFormat')
-// 导入脱敏手机号模块
-const desensitization = require('../utils/desensitize')
-require('dotenv').config() //加载配置环境
-// 详情页商品以及规处理模块
+const db2 = require("../db/mysql2")
+const TIME = require("../utils/dateFormat")
+const desensitization = require("../utils/desensitize")
+require("dotenv").config()
+
 exports.goodsDetailPageHandle = async (req, res) => {
-    try {
-        // 需拿到客户端传过来的goodsId
-        const goodsId = req.query.goodsId || req.body.goodsId
-        if (!goodsId) return res.cc('未传 goodsId ')
-        // 1.查询商品信息sql语句
-        const dql = `
-        select g.id,g.title,g.price_min,g.price_max,g.description,g.sales,g.stock,
-        (SELECT JSON_ARRAYAGG(url) FROM goods_images WHERE goods_id = g.id AND type = 'detail') AS detail_images,
-        (SELECT JSON_ARRAYAGG(url) FROM goods_images WHERE goods_id = g.id AND type = 'detail_page') AS detail_page_images
-        from goods g where g.id = ?`
+  try {
+    const goodsId = parseInt(req.query.goodsId) || parseInt(req.body.goodsId)
+    if (!goodsId)
+      return res.status(400).json({ status: 1, message: "未传goodsId" })
 
-        // 2.查询商品规格sql语句
-        const specs = `
-            select s.name 'name',
-            s.type 'type',
-            s.id as 'specs_id',
-            JSON_ARRAYAGG(JSON_OBJECT('id',gs.id,'value',gs.value,'stock',gs.stock,'price',gs.price)) as 'values',
-            JSON_ARRAYAGG( gs.image_url) 'color_image_url'
-                from goods_specs gs join specs s on gs.spec_id = s.id
-                where gs.goods_id = ?  group by s.name
-        `
+    // 1. 获取商品基础信息
+    const [goods] = await db2.query(
+      `
+      SELECT id, title, price_min, price_max, 
+             description, sales, stock, main_image
+      FROM goods WHERE id = ?`,
+      [goodsId]
+    )
 
-        await db.query(dql, goodsId, (err, results) => {
-            if (err) return res.cc(err)
-            if (results.length <= 0) return res.cc('请输入有效的goodsId')
-            // 查询时JSON_ARRAYAGG(gi.url) as "detail_images 将detail类型照片和并为json字符串
-            //   需要将detail_image json字符串还原成数组 （利用json.parse方法）
-            let detailData = {
-                ...results[0],
-                detail_images: JSON.parse(results[0].detail_images),
-                detail_page_images: JSON.parse(results[0].detail_page_images),
-            }
-            db.query(specs, goodsId, (err, results2) => {
-                if (err) return res.cc(err)
-                // 将json字符串转换为数组
-                results2.forEach(item => {
-                    item.values = JSON.parse(item.values)
-                    item.color_image_url = JSON.parse(item.color_image_url)
-                })
-                // 将规格数据与详情页的数据合并
-                detailData.specs = results2
-                res.send({
-                    status: 0,
-                    message: "succeed",
-                    data: detailData
-                })
-            })
-
-        })
-    } catch (err) {
-        console.error('数据库错误详情:', err)
-        res.cc(err)
+    if (!goods.length) {
+      return res
+        .status(404)
+        .json({ status: 1, message: "商品不存在", data: null })
     }
-}
-// 处理用户评论模块
 
-exports.goodsCommentHandle = async (req, res) => {
-    try {
-        // 客户端携带goodsId limit(可选 默认为4)
-        const goodsId = req.query.goodsId || req.body.goodsId
-        const limit = parseInt(req.body.limit) || 4
-        if (!goodsId) return res.cc('未传 goodsId ')
-        if (isNaN(limit)) {
-            throw new Error("页面和限制必须是数字");
+    // 2. 获取图片
+    const [images] = await db2.query(
+      `
+      SELECT url, type FROM goods_images 
+      WHERE goods_id = ? ORDER BY type, index_num`,
+      [goodsId]
+    )
+
+    // 3. 获取规格数据（
+    const [specs] = await db2.query(
+      `
+      SELECT 
+        s.id AS spec_id, s.name, s.type,
+        gs.id, gs.value, gs.stock, gs.price, gs.image_url
+      FROM goods_specs gs
+      JOIN specs s ON gs.spec_id = s.id
+      WHERE gs.goods_id = ?
+      ORDER BY s.id, gs.id`,
+      [goodsId]
+    )
+
+    const [combinedImages] = await db2.query(
+      `
+    SELECT 
+      GROUP_CONCAT(url ORDER BY index_num SEPARATOR '||') AS combined_detail
+    FROM goods_images
+    WHERE goods_id = ? AND type = 'detail_page'
+    GROUP BY type`,
+      [goodsId]
+    )
+
+    // 4. 处理数据
+    const processUrl = (url) => (url ? `${process.env.baseUrl}/${url}` : "")
+
+    const response = {
+      ...goods[0],
+      main_image: processUrl(goods[0].main_image),
+      detail_images: images
+        .filter((i) => i.type === "detail")
+        .map((i) => processUrl(i.url)),
+      detail_page_images: images
+        .filter((i) => i.type === "detail_page")
+        .map((i) => processUrl(i.url)),
+      specs: [],
+      detail_page_combined: combinedImages[0]?.combined_detail
+        ? `${process.env.baseUrl}/${combinedImages[0].combined_detail.replace(
+            /\|\|/g,
+            `||${process.env.baseUrl}/`
+          )}`
+        : "",
+    }
+
+    const specGroups = {}
+    specs.forEach((item) => {
+      if (!specGroups[item.spec_id]) {
+        specGroups[item.spec_id] = {
+          name: item.name,
+          type: "text",
+          specs_id: item.spec_id,
+          values: [],
+          color_image_url: [],
         }
-        const dql = `
-            select
-        u.username as 'username',u.nickname 'nick_name',u.avatar 'head_portrait',u.default_avatar 'default_head_portrait',ugc.goods_id 'goodsID',ugc.goods_comment as'goods_comment',JSON_ARRAY(ugc.comment_images) 'comment_images',ugc.rating 'goods_rating',ugc.created_at 'comment_timer'
-        from users u join users_goods_comment ugc on u.id = ugc.user_id
-        where ugc.goods_id = ?
-        order by ugc.rating desc,ugc.created_at desc limit ?;
-        `
-        await db.query(dql, [goodsId, limit], (err, results) => {
-            if (results.length <= 0) return res.cc('请输入有效的goodsId')
-            results.forEach(item => {
-                item.comment_timer = TIME.dateFormat(item.comment_timer)
-                item.username = desensitization.desensitizePhone(item.username)
-                item.default_head_portrait = process.env.baseUrl + item.default_head_portrait
-                item.head_portrait = item.head_portrait ? process.env.baseUrl + item.head_portrait : item.head_portrait
-                item.comment_images = JSON.parse(item.comment_images).filter(img => img != null && img.trim() !== '').map(img => process.env.baseUrl + img) 
-            })
-            if (err) return res.cc(err)
-            res.send({
-                status: 0,
-                message: "succeed",
-                data: results
-            })
-        })
+      }
 
-    } catch (err) {
-        console.error('数据库错误详情:', err)
-        res.cc(err)
-    }
+      const specValue = {
+        id: item.id,
+        value: item.value,
+        stock: item.stock || 0,
+        price: item.price || 0,
+        image_url: item.image_url
+          ? `${process.env.baseUrl}/${item.image_url}`
+          : "",
+      }
+
+      specGroups[item.spec_id].values.push(specValue)
+      if (item.image_url) {
+        specGroups[item.spec_id].color_image_url.push(
+          `${process.env.baseUrl}/${item.image_url}`
+        )
+      }
+    })
+
+    // 确保规格顺序固定：内存->颜色
+    response.specs = Object.values(specGroups).sort((a, b) =>
+      a.name === "内存" ? -1 : b.name === "内存" ? 1 : 0
+    )
+
+    res.json({
+      status: 0,
+      message: "success",
+      data: response,
+    })
+  } catch (err) {
+    console.error("数据库错误:", err)
+    res.status(500).json({
+      status: 1,
+      message: "服务器内部错误",
+      data: null,
+    })
+  }
+}
+// 商品评论接口
+exports.goodsCommentHandle = async (req, res) => {
+  try {
+    const goodsId = parseInt(req.query.goodsId) || parseInt(req.body.goodsId)
+    const limit = parseInt(req.query.limit) || 4
+
+    if (!goodsId)
+      return res.status(400).json({ status: 1, message: "未传goodsId" })
+
+    const [comments] = await db2.query(
+      `
+      SELECT
+        u.username, u.nickname AS nick_name,
+        u.avatar AS head_portrait,
+        u.default_avatar AS default_head_portrait,
+        ugc.goods_id AS goodsID,
+        ugc.goods_comment,
+        ugc.comment_images,
+        ugc.rating AS goods_rating,
+        ugc.created_at AS comment_timer
+      FROM users u
+      JOIN users_goods_comment ugc ON u.id = ugc.user_id
+      WHERE ugc.goods_id = ?
+      ORDER BY ugc.rating DESC, ugc.created_at DESC
+      LIMIT ?`,
+      [goodsId, limit]
+    )
+
+    const result = comments.map((item) => {
+      // 处理评论图片 (兼容字符串和数组)
+      let images = []
+      try {
+        images =
+          typeof item.comment_images === "string"
+            ? JSON.parse(item.comment_images)
+            : item.comment_images || []
+      } catch (e) {
+        images = []
+      }
+
+      return {
+        ...item,
+        comment_timer: TIME.dateFormat(item.comment_timer),
+        username: desensitization.desensitizePhone(item.username),
+        default_head_portrait: `${process.env.baseUrl}${item.default_head_portrait}`,
+        head_portrait: item.head_portrait
+          ? `${process.env.baseUrl}${item.head_portrait}`
+          : null,
+        comment_images: images
+          .filter((img) => img && typeof img === "string")
+          .map((img) =>
+            img.startsWith("http") ? img : `${process.env.baseUrl}${img}`
+          ),
+      }
+    })
+
+    res.json({
+      status: 0,
+      message: "success",
+      data: result,
+    })
+  } catch (err) {
+    console.error("数据库错误:", err)
+    res.status(500).json({ status: 1, message: "服务器内部错误" })
+  }
 }
