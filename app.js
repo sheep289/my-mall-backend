@@ -72,6 +72,10 @@ app.use('/my',userInfoRouter)
 const searchRouter = require('./router/search')
 app.use('/api',searchRouter)
 
+// 添加商品
+const goodsRouter = require('./router/goods')
+app.use('/my',goodsRouter)
+
 // 错误处理中间件（捕获验证错误信息，并响应给客户端）
 app.use((err, req, res, next) => {
     if (err instanceof joi.ValidationError) return res.cc(err)
