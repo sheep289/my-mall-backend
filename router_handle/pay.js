@@ -18,7 +18,6 @@ exports.checkoutOrderhandle = async (req, res) => {
       const specValueIds = req.query.specValueIds || req.body.specValueIds
       const quantity =
         parseInt(req.query.quantity) || parseInt(req.body.quantity)
-      console.log(specValueIds)
 
       //用户端携带立即购买相应的商品参数响应对应的商品信息 （mode,goodsId,规格，数量）
       if (!specValueIds) return res.cc("请选择规格")
@@ -53,7 +52,7 @@ exports.checkoutOrderhandle = async (req, res) => {
       if (!specRows.length) return res.cc("规格不存在")
 
       // 取价格
-      const price = specRows[specRows.length - 1].price
+      const price = parseFloat(specRows[specRows.length - 1].price)
       const total_price = price * quantity
 
       // 取颜色图片
@@ -90,8 +89,8 @@ exports.checkoutOrderhandle = async (req, res) => {
       if (!Array.isArray(cartIds)) return res.cc("获取失败，请重试")
       const placeholders = cartIds.map(() => "?").join(",")
 
-    // 查询购物车商品基本信息
-    const getCarDatatDql = `
+      // 查询购物车商品基本信息
+      const getCarDatatDql = `
         select
             c.id AS cart_id,
             c.goods_id,
@@ -104,59 +103,61 @@ exports.checkoutOrderhandle = async (req, res) => {
         WHERE c.user_id = ? AND c.id in (${placeholders})
             ORDER BY c.id DESC
         `
-    const [cartRows] = await db.query(getCarDatatDql, [userId, ...cartIds])
+      const [cartRows] = await db.query(getCarDatatDql, [userId, ...cartIds])
 
-    // 组装每个商品的规格信息
-    const results = []
-    for (const cart of cartRows) {
-      // 解析规格ID数组
-      let specValueIds = []
-      try {
-        // specs字段存储为JSON对象，如：{"color": 1, "memory": 2}
-        const specs = typeof cart.specs === "string" ? JSON.parse(cart.specs) : cart.specs
-        specValueIds = Object.values(specs).map(Number)
-      } catch (e) {
-        return res.cc("购物车商品规格格式错误")
-      }
-      if (!Array.isArray(specValueIds) || specValueIds.length === 0) {
-        return res.cc("购物车商品规格缺失")
-      }
+      // 组装每个商品的规格信息
+      const results = []
+      for (const cart of cartRows) {
+        // 解析规格ID数组
+        let specValueIds = []
+        try {
+          // specs字段存储为JSON对象，如：{"color": 1, "memory": 2}
+          const specs =
+            typeof cart.specs === "string" ? JSON.parse(cart.specs) : cart.specs
+          specValueIds = Object.values(specs).map(Number)
+        } catch (e) {
+          return res.cc("购物车商品规格格式错误")
+        }
+        if (!Array.isArray(specValueIds) || specValueIds.length === 0) {
+          return res.cc("购物车商品规格缺失")
+        }
 
-      // 查询规格详情
-      const placeholders2 = specValueIds.map(() => "?").join(",")
-      const [specRows] = await db.query(
-        `SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
+        // 查询规格详情
+        const placeholders2 = specValueIds.map(() => "?").join(",")
+        const [specRows] = await db.query(
+          `SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
          FROM goods_specs gs
          LEFT JOIN specs s ON gs.spec_id = s.id
          WHERE gs.id IN (${placeholders2}) AND gs.goods_id = ?`,
-        [...specValueIds, cart.goods_id]
-      )
-      if (!specRows.length) return res.cc("购物车商品规格不存在")
+          [...specValueIds, cart.goods_id]
+        )
+        if (!specRows.length) return res.cc("购物车商品规格不存在")
 
-      // 取价格
-      const price = specRows[specRows.length - 1].price
-      const total_price = price * cart.quantity
+        // 取价格
+        const price = specRows[specRows.length - 1].price
+        const total_price = price * cart.quantity
 
-      // 取颜色图片
-      const colorSpec = specRows.find((item) => item.spec_id === 1)
-      const color_image = colorSpec ? colorSpec.image_url : null
+        // 取颜色图片
+        const colorSpec = specRows.find((item) => item.spec_id === 1)
+        const color_image = colorSpec ? colorSpec.image_url : null
 
-      // 组装规格名称与值
-      const names = specRows.map((item) => item.name)
-      const values = specRows.map((item) => item.value)
+        // 组装规格名称与值
+        const names = specRows.map((item) => item.name)
+        const values = specRows.map((item) => item.value)
 
-      results.push({
-        goods_id: cart.goods_id,
-        goods_title: cart.goods_title,
-        goods_coverImg: process.env.baseUrl + cart.goods_coverImg,
-        color_image: color_image ? process.env.baseUrl + color_image : null,
-        name: names,
-        value: values,
-        price,
-        total_price,
-        quantity: cart.quantity,
-      })
-    }
+        results.push({
+          cart_id: cart.cart_id,
+          goods_id: cart.goods_id,
+          goods_title: cart.goods_title,
+          goods_coverImg: process.env.baseUrl + cart.goods_coverImg,
+          color_image: color_image ? process.env.baseUrl + color_image : null,
+          name: names,
+          value: values,
+          price,
+          total_price,
+          quantity: cart.quantity,
+        })
+      }
       res.send({
         status: 0,
         mode: "cart",
@@ -224,7 +225,6 @@ exports.handleSubmit = async (req, res) => {
     // 获取用户余额
     const dql4 = `SELECT * FROM user_balances WHERE user_id = ?`
     const [user_balance] = await db.query(dql4, [userId])
-    user_balance.forEach((item) => (item.balance = parseFloat(item.balance)))
     const obj = user_balance.find((item) => item.user_id === userId)
 
     // 如果客户端选择的支付方式不等1（余额支付），则结束程序（因为其它支付方式暂未开通，只支持余额支付）
@@ -237,7 +237,7 @@ exports.handleSubmit = async (req, res) => {
       if (!Array.isArray(cartIds)) return res.cc("获取失败，请重试")
       for (const item of quantitys) {
         if (!item.id || item.quantity === undefined || item.quantity < 0)
-          return res.cc("Invalid item data")
+          return res.cc("数据错误")
       }
 
       const placeholders = cartIds.map(() => "?").join(",")
@@ -257,42 +257,72 @@ exports.handleSubmit = async (req, res) => {
       // 执行批量更新
       await db.query(sql, [ids, userId])
 
-      const dql1 = `
-                    SELECT
-                    c.id AS cart_id,
-                    c.goods_id,
-                    c.quantity,
-                    memory_gs.price * c.quantity AS total_price,
-                    (
-                        SELECT
-                        price
-                        FROM
-                        goods_specs
-                        WHERE
-                        goods_id = c.goods_id
-                        AND spec_id = 2
-                        AND id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.memory'))
-                    ) AS price
-                    FROM
-                    carts c
-                    JOIN goods g ON c.goods_id = g.id
-                    LEFT JOIN goods_specs color_gs ON color_gs.id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.color'))
-                    AND color_gs.goods_id = c.goods_id
-                    AND color_gs.spec_id = 1
-                    LEFT JOIN goods_specs memory_gs ON memory_gs.id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.memory'))
-                    AND memory_gs.goods_id = c.goods_id
-                    AND memory_gs.spec_id = 2
-                    WHERE
-                    c.user_id = ?
-                    AND c.id IN (${placeholders})
-            `
-      const [results1] = await db.query(dql1, [userId, ...cartIds])
-      const totalAmount = results1.reduce(
+      // 1 .根据cartId查询基本的 购物车信息
+      const [cartRows] = await db.query(
+        `
+        select c.id as 'cart_id',
+                c.quantity,
+                c.specs,
+                c.goods_id
+            from carts c
+            where c.user_id = ? and c.id in (${placeholders})
+                `,
+        [userId, ...cartIds]
+      )
+      const result = []
+      for (const cart of cartRows) {
+        let specValueIds = []
+        try {
+          const specs =
+            typeof cart.specs === "string" ? JSON.parse(cart.specs) : cart.specs
+          specValueIds = Object.values(specs).map(Number)
+        } catch (e) {
+          return res.cc("购物车商品规格格式错误")
+        }
+        const placeholders2 = specValueIds.map(() => "?").join(",")
+        const [specRows] = await db.query(
+          `SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
+         FROM goods_specs gs
+         LEFT JOIN specs s ON gs.spec_id = s.id
+         WHERE gs.id IN (${placeholders2}) AND gs.goods_id = ?`,
+          [...specValueIds, cart.goods_id]
+        )
+        if (!specRows.length) return res.cc("购物车商品规格不存在")
+
+        // 销量增加
+        await db.query(
+          `UPDATE goods 
+       SET sales = sales + ? 
+       WHERE id = ?`,
+          [cart.quantity, cart.goods_id]
+        )
+
+        // 库存减少
+        await db.query(
+          `UPDATE goods_specs 
+       SET stock = stock - ? 
+       WHERE id IN (${placeholders2}) AND stock >= ?`,
+          [cart.quantity, ...specValueIds, cart.goods_id, cart.quantity]
+        )
+        // 取价格
+        const price = parseFloat(specRows[specRows.length - 1].price)
+        const total_price = price * cart.quantity
+
+        result.push({
+          cart_id: cart.cart_id,
+          goods_id: cart.goods_id,
+          price,
+          total_price,
+          quantity: cart.quantity,
+        })
+      }
+
+      const totalAmount = result.reduce(
         (sum, item) => sum + parseFloat(item.total_price),
         0
       )
-      // 后续如果添加优惠券等金额，直接拿toatalAmount 进行计算
 
+      // 后续如果添加优惠券等金额，直接拿toatalAmount 进行计算
       // 3记录用户下单信息 (用户id 全部金额)
       const dql2 = `insert into orders (user_id, total_amount) values (?,?)`
       const [newRows] = await db.query(dql2, [userId, totalAmount])
@@ -300,7 +330,7 @@ exports.handleSubmit = async (req, res) => {
 
       const dql3 = `insert into order_items (order_id, goods_id, pay_price, mode, mode_id) values ? `
       await db.query(dql3, [
-        results1.map((item) => [
+        result.map((item) => [
           orderId,
           item.goods_id,
           item.price,
@@ -342,29 +372,30 @@ exports.handleSubmit = async (req, res) => {
       )
       const buyNowId = newRows.insertId
 
-      const dql1 = `
-                    select
-                    b.id as 'buynow_id',
-                    g.id as 'goods_id',
-                (SELECT price FROM goods_specs
-                    WHERE goods_id = g.id
-                        AND spec_id = 2
-                        AND id = JSON_UNQUOTE(JSON_EXTRACT(b.specs, '$.memory'))) AS price,
-                (SELECT price FROM goods_specs
-                    WHERE goods_id = g.id
-                        AND spec_id = 2
-                        AND id = JSON_UNQUOTE(JSON_EXTRACT(b.specs, '$.memory'))) * b.quantity AS total_price
-                    from
-                    buynow b
-                left join goods g on b.goods_id = g.id
-                left join goods_specs gs on g.id = gs.goods_id
-                where b.id = ? and b.user_id = ?
-                group by b.id
-            `
-      const [results1] = await db.query(dql1, [buyNowId, userId])
-      const total_amount = results1.find(
-        (item) => item.buynow_id === buyNowId
-      ).total_price
+      const [buynowRows] = await db.query(
+        `
+            select *
+                from buynow b
+                where b.id = ?
+            `,
+        buyNowId
+      )
+
+      const placeholders = buynowRows[0].specs.map(() => "?").join(",")
+
+      const [specRows] = await db.query(
+        `
+            SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
+            FROM goods_specs gs
+            LEFT JOIN specs s ON gs.spec_id = s.id
+            WHERE gs.id IN (${placeholders}) AND gs.goods_id = ?
+            `,
+        [...buynowRows[0].specs, goodsId]
+      )
+
+      if (!specRows.length) return res.cc("规格不存在")
+      const price = parseFloat(specRows[specRows.length - 1].price)
+      const total_amount = price * quantity
 
       // 记录用户下单信息
       const [newRows2] = await db.query(
@@ -372,19 +403,10 @@ exports.handleSubmit = async (req, res) => {
         [userId, total_amount]
       )
       const orderId = newRows2.insertId
-
       // 记录订单表下的商品信息
       await db.query(
-        `insert into order_items (order_id, goods_id, pay_price, mode, mode_id) values ?`,
-        [
-          results1.map((item) => [
-            orderId,
-            item.goods_id,
-            item.price,
-            mode,
-            item.buynow_id,
-          ]),
-        ]
+        `insert into order_items (order_id, goods_id, pay_price, mode, mode_id) values (?,?,?,?,?)`,
+        [orderId,goodsId,price,mode,buyNowId]
       )
 
       // 3.支付操作（处理余额支付场景）
@@ -399,6 +421,20 @@ exports.handleSubmit = async (req, res) => {
           orderId,
         ])
 
+        // 销量增加
+        await db.query(
+          `UPDATE goods 
+       SET sales = sales + ? 
+       WHERE id = ?`,
+          [quantity, goodsId]
+        )
+        // 库存减少
+        await db.query(
+          `UPDATE goods_specs 
+       SET stock = stock - ? 
+       WHERE id IN (${placeholders}) AND stock >= ?`,
+          [quantity, ...buynowRows[0].specs, goodsId, quantity]
+        )
         res.send({
           status: 0,
           message: "扣款成功",
