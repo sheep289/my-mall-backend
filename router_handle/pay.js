@@ -22,13 +22,14 @@ exports.checkoutOrderhandle = async (req, res) => {
       //用户端携带立即购买相应的商品参数响应对应的商品信息 （mode,goodsId,规格，数量）
       if (!specValueIds) return res.cc("请选择规格")
 
-      // 将specValueIds里面的每个元素转换为整数
-      const specIds = specValueIds.map((item) => {
-        const num = parseInt(item)
-        if (isNaN(num)) throw new Error("规格ID必须是数字")
-        return num
-      })
-
+        
+        // 将specValueIds里面的每个元素转换为整数
+      //   const specIds = specValueIds.map((item) => {
+      //     const num = parseInt(item)
+      //     if (isNaN(num)) throw new Error("规格ID必须是数字")
+      //     return num
+      //   })
+      const specIds = specValueIds.map(Number)
       if (!goodsId || !Array.isArray(specIds) || specIds.length === 0)
         return res.cc("参数错误")
 
@@ -406,7 +407,7 @@ exports.handleSubmit = async (req, res) => {
       // 记录订单表下的商品信息
       await db.query(
         `insert into order_items (order_id, goods_id, pay_price, mode, mode_id) values (?,?,?,?,?)`,
-        [orderId,goodsId,price,mode,buyNowId]
+        [orderId, goodsId, price, mode, buyNowId]
       )
 
       // 3.支付操作（处理余额支付场景）

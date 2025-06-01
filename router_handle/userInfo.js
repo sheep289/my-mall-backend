@@ -56,13 +56,15 @@ exports.handleOrderList = async (req, res) => {
                 select
                     *
                 from orders
-                where user_id = ? and status in (${placeholders9}) 
-                and order_state = 0
+                where user_id = ? and order_state = 0 and status in (${placeholders9}) 
                 order by created_at desc
-                limit 10
+                limit 30
             `
 
     const [results] = await db.query(dql1, [userId, ...newType])
+
+    // ————————————————————————————————————————上面正常
+    
     if (results.length <= 0) {
       return res.send({
         status: 0,
@@ -92,6 +94,7 @@ exports.handleOrderList = async (req, res) => {
 
     // 2.获取订单表的id
     const handleRst = results.map((item) => item.id)
+    
     const placeholders = handleRst.map(() => "?").join(",")
     // 3.通过订单表id查询order_items商品(通过订单id查询对应的订单商品订单商品)
     const dql2 = `SELECT * FROM order_items WHERE order_id IN (${placeholders})`
@@ -114,68 +117,136 @@ exports.handleOrderList = async (req, res) => {
     let buyNowData = []
 
     if (buyNowIds.length > 0) {
+      // 查询立即购买商品信息
       const dql4 = `
-                select
-                       g.id as 'goods_id',
-                       b.id as 'buyNow_id',
-                       b.quantity,
-                       b.specs,
-                       g.title as 'goods_title',
-                       g.main_image as 'goods_coverImg',
-                       gs.image_url 'color_image',
-                   (SELECT value FROM goods_specs
-                       WHERE goods_id = g.id
-                           AND spec_id = 1
-                           AND id = JSON_UNQUOTE(JSON_EXTRACT(b.specs, '$.color'))) AS color_name,
-                   (SELECT value FROM goods_specs
-                       WHERE goods_id = g.id
-                           AND spec_id = 2
-                           AND id = JSON_UNQUOTE(JSON_EXTRACT(b.specs, '$.memory'))) AS memory_name
-                       from
-                       goods g
-                   left join goods_specs gs on g.id = gs.goods_id
-                   left join  buynow b on g.id = b.goods_id
-                   where b.id in (${placeholders2})
-                   group by b.id;
-                   `
+        SELECT
+          g.id AS goods_id,
+          b.id AS buyNow_id,
+          b.quantity,
+          b.specs,
+          g.title AS goods_title,
+          g.main_image AS goods_coverImg
+        FROM goods g
+        LEFT JOIN buynow b ON g.id = b.goods_id
+        WHERE b.id IN (${placeholders2})
+        GROUP BY b.id
+      `
+      const [buyNowRows] = await db.query(dql4, [...buyNowIds])
 
-      const [results] = await db.query(dql4, [...buyNowIds])
-      results.forEach(item => item.goods_coverImg = process.env.baseUrl + item.goods_coverImg)
-      buyNowData = results
-    }
+      // 解析每个立即购买商品的规格信息
+      for (const item of buyNowRows) {
+        let specIds = []
+        try {
+          // specs 可能是JSON字符串或对象
+          const specsObj = typeof item.specs === "string" ? JSON.parse(item.specs) : item.specs
+          specIds = Object.values(specsObj).map(Number).filter(Boolean)
+        } catch (e) {
+          specIds = []
+        }
+        if (specIds.length > 0) {
+          const placeholders = specIds.map(() => "?").join(",")
+          const [specRows] = await db.query(
+        `SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
+         FROM goods_specs gs
+         LEFT JOIN specs s ON gs.spec_id = s.id
+         WHERE gs.id IN (${placeholders}) AND gs.goods_id = ?`,
+        [...specIds, item.goods_id]
+          )
+          // 取价格
+          const price = specRows.length ? parseFloat(specRows[specRows.length - 1].price) : 0
+          const total_price = price * item.quantity
+          // 取颜色图片
+          const colorSpec = specRows.find((row) => row.spec_id === 1)
+          const color_image = colorSpec ? colorSpec.image_url : null
+          // 组装规格名称与值
+          const names = specRows.map((row) => row.name)
+          const values = specRows.map((row) => row.value)
+          // 合并规格信息到item
+          item.price = price
+          item.total_price = total_price
+          item.color_image = color_image ? process.env.baseUrl + color_image : null
+          item.name = names
+          item.value = values
+
+        } else {
+          item.price = 0
+          item.total_price = 0
+          item.color_image = null
+          item.name = []
+          item.value = []
+        }
+        item.goods_coverImg = process.env.baseUrl + item.goods_coverImg
+      }
+      buyNowData = buyNowRows
+    }    
+    
 
     const cartIds = results1
       .filter((item) => item.mode === "cart")
       .map((modeId) => modeId.mode_id)
     const placeholders3 = cartIds.map(() => "?").join(",")
-
     let cartsData = []
     if (cartIds.length > 0) {
+      // 查询购物车商品信息
       const dql5 = `
-                SELECT
-                c.id AS cart_id,
-                c.goods_id,
-                g.title AS goods_title,
-                c.quantity,
-                g.main_image goods_coverImg,
-                color_gs.image_url AS color_image,
-                color_gs.value AS color_name,
-                memory_gs.value AS memory_name
-                FROM carts c
-                JOIN goods g ON c.goods_id = g.id
-                LEFT JOIN goods_specs color_gs
-                ON color_gs.id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.color'))
-                AND color_gs.goods_id = c.goods_id
-                AND color_gs.spec_id = 1
-                LEFT JOIN goods_specs memory_gs
-                ON memory_gs.id = JSON_UNQUOTE(JSON_EXTRACT(c.specs, '$.memory'))
-                AND memory_gs.goods_id = c.goods_id
-                AND memory_gs.spec_id = 2
-                WHERE c.user_id = ? AND c.id in (${placeholders3})
-            `
-      const [results] = await db.query(dql5, [userId, ...cartIds])
-      results.forEach(item => item.goods_coverImg = process.env.baseUrl + item.goods_coverImg)
-      cartsData = results
+      SELECT
+        g.id AS goods_id,
+        c.id AS cart_id,
+        c.quantity,
+        c.specs,
+        g.title AS goods_title,
+        g.main_image AS goods_coverImg
+      FROM goods g
+      LEFT JOIN carts c ON g.id = c.goods_id
+      WHERE c.id IN (${placeholders3})
+      GROUP BY c.id
+      `
+      const [cartRows] = await db.query(dql5, [...cartIds])
+
+      // 解析每个购物车商品的规格信息
+      for (const item of cartRows) {
+      let specIds = []
+      try {
+        // specs 可能是JSON字符串或对象
+        const specsObj = typeof item.specs === "string" ? JSON.parse(item.specs) : item.specs
+        specIds = Object.values(specsObj).map(Number).filter(Boolean)
+      } catch (e) {
+        specIds = []
+      }
+      if (specIds.length > 0) {
+        const placeholders = specIds.map(() => "?").join(",")
+        const [specRows] = await db.query(
+        `SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
+         FROM goods_specs gs
+         LEFT JOIN specs s ON gs.spec_id = s.id
+         WHERE gs.id IN (${placeholders}) AND gs.goods_id = ?`,
+        [...specIds, item.goods_id]
+        )
+        // 取价格
+        const price = specRows.length ? parseFloat(specRows[specRows.length - 1].price) : 0
+        const total_price = price * item.quantity
+        // 取颜色图片
+        const colorSpec = specRows.find((row) => row.spec_id === 1)
+        const color_image = colorSpec ? colorSpec.image_url : null
+        // 组装规格名称与值
+        const names = specRows.map((row) => row.name)
+        const values = specRows.map((row) => row.value)
+        // 合并规格信息到item
+        item.price = price
+        item.total_price = total_price
+        item.color_image = color_image ? process.env.baseUrl + color_image : null
+        item.name = names
+        item.value = values
+      } else {
+        item.price = 0
+        item.total_price = 0
+        item.color_image = null
+        item.name = []
+        item.value = []
+      }
+      item.goods_coverImg = process.env.baseUrl + item.goods_coverImg
+      }
+      cartsData = cartRows
     }
 
     // 6.合并buyNowData与cartsData (合并2个数组)
@@ -186,7 +257,7 @@ exports.handleOrderList = async (req, res) => {
       // 根据 mode 类型确定匹配字段
       const idField = item.mode === "cart" ? "cart_id" : "buyNow_id"
 
-      // 严格匹配：模式类型 + ID 值
+      // 模式类型 + ID 值
       const matchedDetail = mergeArray.find(
         (detail) => detail[idField] === item.mode_id
       )
@@ -194,7 +265,6 @@ exports.handleOrderList = async (req, res) => {
       // 将订单表（order）与result1（order_items）表进行 匹配
       const arr = results.find((orderId) => orderId.id === item.order_id)
 
-      // 合并核心字段和商品详情（未匹配时保留原始数据）
 
       return {
         ...item,
@@ -203,10 +273,11 @@ exports.handleOrderList = async (req, res) => {
         goods_coverImg: matchedDetail?.goods_coverImg,
         color_image: matchedDetail?.color_image,
         quantity: matchedDetail?.quantity,
-        color_name: matchedDetail?.color_name,
-        memory_name: matchedDetail?.memory_name,
+        name: matchedDetail?.name,
+        value:matchedDetail?.value,
         specValueIds: matchedDetail?.specs,
         cart_id: matchedDetail?.cart_id,
+        specValueIds:matchedDetail?.specs
       }
     })
 

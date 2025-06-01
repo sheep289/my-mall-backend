@@ -121,6 +121,7 @@ exports.pageHomeGoodsListHandle = async (req, res) => {
             g.id as goods_id,
             g.main_image as 'goods_cover_image'
                 from goods g
+                where status = 0
                 group by g.id limit ? offset ?
         `
 
