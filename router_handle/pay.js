@@ -1,5 +1,5 @@
-const { array } = require("joi")
 const db = require("../db/mysql2")
+const { array } = require("joi")
 require("dotenv").config() //加载配置环境
 // 1.响应订单商品
 exports.checkoutOrderhandle = async (req, res) => {
@@ -218,27 +218,40 @@ exports.handelPayMode = async (req, res) => {
 }
 
 exports.handleSubmit = async (req, res) => {
+  let connection; // 声明connection变量用于事务处理
+  
   try {
     const userId = req.auth.id
     const mode = req.query.mode || req.body.mode
     const payModeId = req.body.pay_mode_id
 
+    // 获取数据库连接并开始事务
+    connection = await db.getConnection()
+    await connection.beginTransaction()
+
     // 获取用户余额
-    const dql4 = `SELECT * FROM user_balances WHERE user_id = ?`
-    const [user_balance] = await db.query(dql4, [userId])
+    const [user_balance] = await connection.query(`SELECT * FROM user_balances WHERE user_id = ?`, [userId])
     const obj = user_balance.find((item) => item.user_id === userId)
 
     // 如果客户端选择的支付方式不等1（余额支付），则结束程序（因为其它支付方式暂未开通，只支持余额支付）
-    if (payModeId !== obj.pay_mode_id) return res.cc("暂未开通")
+    if (payModeId !== obj.pay_mode_id) {
+      await connection.rollback()
+      return res.cc("暂未开通")
+    }
 
     // 处理不同类型订单支付场景
     if (mode === "cart") {
       const { cartIds, quantitys } = req.body || req.query
       // 数据验证
-      if (!Array.isArray(cartIds)) return res.cc("获取失败，请重试")
+      if (!Array.isArray(cartIds)) {
+        await connection.rollback()
+        return res.cc("获取失败，请重试")
+      }
       for (const item of quantitys) {
-        if (!item.id || item.quantity === undefined || item.quantity < 0)
+        if (!item.id || item.quantity === undefined || item.quantity < 0) {
+          await connection.rollback()
           return res.cc("数据错误")
+        }
       }
 
       const placeholders = cartIds.map(() => "?").join(",")
@@ -256,10 +269,10 @@ exports.handleSubmit = async (req, res) => {
                 WHERE id IN (?) AND user_id = ?
                 `
       // 执行批量更新
-      await db.query(sql, [ids, userId])
+      await connection.query(sql, [ids, userId])
 
       // 1 .根据cartId查询基本的 购物车信息
-      const [cartRows] = await db.query(
+      const [cartRows] = await connection.query(
         `
         select c.id as 'cart_id',
                 c.quantity,
@@ -278,20 +291,24 @@ exports.handleSubmit = async (req, res) => {
             typeof cart.specs === "string" ? JSON.parse(cart.specs) : cart.specs
           specValueIds = Object.values(specs).map(Number)
         } catch (e) {
+          await connection.rollback()
           return res.cc("购物车商品规格格式错误")
         }
         const placeholders2 = specValueIds.map(() => "?").join(",")
-        const [specRows] = await db.query(
+        const [specRows] = await connection.query(
           `SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
          FROM goods_specs gs
          LEFT JOIN specs s ON gs.spec_id = s.id
          WHERE gs.id IN (${placeholders2}) AND gs.goods_id = ?`,
           [...specValueIds, cart.goods_id]
         )
-        if (!specRows.length) return res.cc("购物车商品规格不存在")
+        if (!specRows.length) {
+          await connection.rollback()
+          return res.cc("购物车商品规格不存在")
+        }
 
         // 销量增加
-        await db.query(
+        await connection.query(
           `UPDATE goods 
        SET sales = sales + ? 
        WHERE id = ?`,
@@ -299,7 +316,7 @@ exports.handleSubmit = async (req, res) => {
         )
 
         // 库存减少
-        await db.query(
+        await connection.query(
           `UPDATE goods_specs 
        SET stock = stock - ? 
        WHERE id IN (${placeholders2}) AND stock >= ?`,
@@ -325,12 +342,26 @@ exports.handleSubmit = async (req, res) => {
 
       // 后续如果添加优惠券等金额，直接拿toatalAmount 进行计算
       // 3记录用户下单信息 (用户id 全部金额)
-      const dql2 = `insert into orders (user_id, total_amount) values (?,?)`
-      const [newRows] = await db.query(dql2, [userId, totalAmount])
+      const [newRows] = await connection.query(
+        `insert into orders (user_id, total_amount, status) values (?,?,?)`,
+        [userId, totalAmount, 'pending']
+      )
       const orderId = newRows.insertId
 
+      // 生成订单号 (ORD + 年份后两位 + 8位自增ID)
+      const now = new Date()
+      const year = now.getFullYear().toString().substr(2)
+      const sequence = orderId.toString().padStart(8, '0')
+      const orderNo = `ORD${year}${sequence}`
+
+      // 更新订单号
+      await connection.query(
+        `update orders set order_no = ? where id = ?`,
+        [orderNo, orderId]
+      )
+
       const dql3 = `insert into order_items (order_id, goods_id, pay_price, mode, mode_id) values ? `
-      await db.query(dql3, [
+      await connection.query(dql3, [
         result.map((item) => [
           orderId,
           item.goods_id,
@@ -342,20 +373,31 @@ exports.handleSubmit = async (req, res) => {
 
       // 4.结算操作（后续添加密码功能）
       if (payModeId === obj.pay_mode_id) {
-        if (obj.balance < totalAmount) return res.cc("余额不足")
+        if (obj.balance < totalAmount) {
+          await connection.rollback()
+          return res.cc("余额不足")
+        }
         // 4.3
-        await db.query(
+        await connection.query(
           "UPDATE user_balances SET balance = balance - ? WHERE user_id = ?",
           [totalAmount, userId]
         )
 
         // 4.4
         const dql5 = `update orders set status = 'paid' where id = ?`
-        await db.query(dql5, [orderId])
+        await connection.query(dql5, [orderId])
+
+        // 提交事务
+        await connection.commit()
 
         res.send({
           status: 0,
           message: "扣款成功",
+          data: {
+            orderId,
+            orderNo,
+            totalAmount
+          }
         })
       }
     } else if (mode === "buyNow") {
@@ -364,27 +406,30 @@ exports.handleSubmit = async (req, res) => {
       const specValueIds = JSON.stringify(req.body.specValueIds)
       const quantity = parseInt(req.body.quantity)
       // 校验
-      if (!specValueIds) return res.cc("请选择规格")
+      if (!specValueIds) {
+        await connection.rollback()
+        return res.cc("请选择规格")
+      }
 
       // 新增
-      const [newRows] = await db.query(
+      const [newRows] = await connection.query(
         `insert into buynow (goods_id, user_id, quantity, specs) values (?,?,?,?)`,
         [goodsId, userId, quantity, specValueIds]
       )
       const buyNowId = newRows.insertId
 
-      const [buynowRows] = await db.query(
+      const [buynowRows] = await connection.query(
         `
             select *
                 from buynow b
                 where b.id = ?
             `,
-        buyNowId
+        [buyNowId]
       )
 
       const placeholders = buynowRows[0].specs.map(() => "?").join(",")
 
-      const [specRows] = await db.query(
+      const [specRows] = await connection.query(
         `
             SELECT gs.id, gs.spec_id, gs.value, gs.price, gs.image_url, s.name
             FROM goods_specs gs
@@ -394,57 +439,90 @@ exports.handleSubmit = async (req, res) => {
         [...buynowRows[0].specs, goodsId]
       )
 
-      if (!specRows.length) return res.cc("规格不存在")
+      if (!specRows.length) {
+        await connection.rollback()
+        return res.cc("规格不存在")
+      }
       const price = parseFloat(specRows[specRows.length - 1].price)
       const total_amount = price * quantity
 
       // 记录用户下单信息
-      const [newRows2] = await db.query(
-        `insert into orders (user_id, total_amount) values (?,?)`,
-        [userId, total_amount]
+      const [newRows2] = await connection.query(
+        `insert into orders (user_id, total_amount, status) values (?,?,?)`,
+        [userId, total_amount, 'pending']
       )
       const orderId = newRows2.insertId
+
+      // 生成订单号
+      const now = new Date()
+      const year = now.getFullYear().toString().substr(2)
+      const sequence = orderId.toString().padStart(8, '0')
+      const orderNo = `ORD${year}${sequence}`
+
+      // 更新订单号
+      await connection.query(
+        `update orders set order_no = ? where id = ?`,
+        [orderNo, orderId]
+      )
+
       // 记录订单表下的商品信息
-      await db.query(
+      await connection.query(
         `insert into order_items (order_id, goods_id, pay_price, mode, mode_id) values (?,?,?,?,?)`,
         [orderId, goodsId, price, mode, buyNowId]
       )
 
       // 3.支付操作（处理余额支付场景）
       if (payModeId === obj.pay_mode_id) {
-        if (obj.balance < total_amount) return res.cc("余额不足")
-        await db.query(
+        if (obj.balance < total_amount) {
+          await connection.rollback()
+          return res.cc("余额不足")
+        }
+        await connection.query(
           "UPDATE user_balances SET balance = balance - ? WHERE user_id = ?",
           [total_amount, userId]
         )
 
-        await db.query(`update orders set status = 'paid' where id = ?`, [
+        await connection.query(`update orders set status = 'paid' where id = ?`, [
           orderId,
         ])
 
         // 销量增加
-        await db.query(
+        await connection.query(
           `UPDATE goods 
        SET sales = sales + ? 
        WHERE id = ?`,
           [quantity, goodsId]
         )
         // 库存减少
-        await db.query(
+        await connection.query(
           `UPDATE goods_specs 
        SET stock = stock - ? 
        WHERE id IN (${placeholders}) AND stock >= ?`,
-          [quantity, ...buynowRows[0].specs, goodsId, quantity]
+          [quantity, ...buynowRows[0].specs, quantity]
         )
+
+        // 提交事务
+        await connection.commit()
+
         res.send({
           status: 0,
           message: "扣款成功",
+          data: {
+            orderId,
+            orderNo,
+            totalAmount: total_amount
+          }
         })
       }
     } else {
+      await connection.rollback()
       return res.cc("请选择商品")
     }
   } catch (error) {
     console.error("数据库错误详情:", error)
+    if (connection) await connection.rollback()
+    res.cc("订单创建失败，请重试")
+  } finally {
+    if (connection) connection.release()
   }
 }
