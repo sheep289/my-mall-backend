@@ -1,6 +1,8 @@
 const db = require("../db/mysql2")
 const { array } = require("joi")
 require("dotenv").config() //加载配置环境
+const  time = require('../utils/dateFormat')
+
 // 1.响应订单商品
 exports.checkoutOrderhandle = async (req, res) => {
   try {
@@ -22,8 +24,7 @@ exports.checkoutOrderhandle = async (req, res) => {
       //用户端携带立即购买相应的商品参数响应对应的商品信息 （mode,goodsId,规格，数量）
       if (!specValueIds) return res.cc("请选择规格")
 
-        
-        // 将specValueIds里面的每个元素转换为整数
+      // 将specValueIds里面的每个元素转换为整数
       //   const specIds = specValueIds.map((item) => {
       //     const num = parseInt(item)
       //     if (isNaN(num)) throw new Error("规格ID必须是数字")
@@ -218,19 +219,23 @@ exports.handelPayMode = async (req, res) => {
 }
 
 exports.handleSubmit = async (req, res) => {
-  let connection; // 声明connection变量用于事务处理
-  
+  let connection // 声明connection变量用于事务处理
+
   try {
     const userId = req.auth.id
     const mode = req.query.mode || req.body.mode
     const payModeId = req.body.pay_mode_id
+    const address = req.body.address
 
     // 获取数据库连接并开始事务
     connection = await db.getConnection()
     await connection.beginTransaction()
 
     // 获取用户余额
-    const [user_balance] = await connection.query(`SELECT * FROM user_balances WHERE user_id = ?`, [userId])
+    const [user_balance] = await connection.query(
+      `SELECT * FROM user_balances WHERE user_id = ?`,
+      [userId]
+    )
     const obj = user_balance.find((item) => item.user_id === userId)
 
     // 如果客户端选择的支付方式不等1（余额支付），则结束程序（因为其它支付方式暂未开通，只支持余额支付）
@@ -343,22 +348,22 @@ exports.handleSubmit = async (req, res) => {
       // 后续如果添加优惠券等金额，直接拿toatalAmount 进行计算
       // 3记录用户下单信息 (用户id 全部金额)
       const [newRows] = await connection.query(
-        `insert into orders (user_id, total_amount, status) values (?,?,?)`,
-        [userId, totalAmount, 'pending']
+        `insert into orders (user_id, total_amount,address, status) values (?,?,?,?)`,
+        [userId, totalAmount, address, "pending"]
       )
       const orderId = newRows.insertId
 
       // 生成订单号 (ORD + 年份后两位 + 8位自增ID)
       const now = new Date()
       const year = now.getFullYear().toString().substr(2)
-      const sequence = orderId.toString().padStart(8, '0')
+      const sequence = orderId.toString().padStart(8, "0")
       const orderNo = `ORD${year}${sequence}`
 
       // 更新订单号
-      await connection.query(
-        `update orders set order_no = ? where id = ?`,
-        [orderNo, orderId]
-      )
+      await connection.query(`update orders set order_no = ? where id = ?`, [
+        orderNo,
+        orderId,
+      ])
 
       const dql3 = `insert into order_items (order_id, goods_id, pay_price, mode, mode_id) values ? `
       await connection.query(dql3, [
@@ -396,8 +401,8 @@ exports.handleSubmit = async (req, res) => {
           data: {
             orderId,
             orderNo,
-            totalAmount
-          }
+            totalAmount,
+          },
         })
       }
     } else if (mode === "buyNow") {
@@ -448,22 +453,22 @@ exports.handleSubmit = async (req, res) => {
 
       // 记录用户下单信息
       const [newRows2] = await connection.query(
-        `insert into orders (user_id, total_amount, status) values (?,?,?)`,
-        [userId, total_amount, 'pending']
+        `insert into orders (user_id, total_amount,address, status) values (?,?,?,?)`,
+        [userId, total_amount, address, "pending"]
       )
       const orderId = newRows2.insertId
 
       // 生成订单号
       const now = new Date()
       const year = now.getFullYear().toString().substr(2)
-      const sequence = orderId.toString().padStart(8, '0')
+      const sequence = orderId.toString().padStart(8, "0")
       const orderNo = `ORD${year}${sequence}`
 
       // 更新订单号
-      await connection.query(
-        `update orders set order_no = ? where id = ?`,
-        [orderNo, orderId]
-      )
+      await connection.query(`update orders set order_no = ? where id = ?`, [
+        orderNo,
+        orderId,
+      ])
 
       // 记录订单表下的商品信息
       await connection.query(
@@ -482,9 +487,10 @@ exports.handleSubmit = async (req, res) => {
           [total_amount, userId]
         )
 
-        await connection.query(`update orders set status = 'paid' where id = ?`, [
-          orderId,
-        ])
+        await connection.query(
+          `update orders set status = 'paid' where id = ?`,
+          [orderId]
+        )
 
         // 销量增加
         await connection.query(
@@ -510,8 +516,8 @@ exports.handleSubmit = async (req, res) => {
           data: {
             orderId,
             orderNo,
-            totalAmount: total_amount
-          }
+            totalAmount: total_amount,
+          },
         })
       }
     } else {
@@ -521,8 +527,32 @@ exports.handleSubmit = async (req, res) => {
   } catch (error) {
     console.error("数据库错误详情:", error)
     if (connection) await connection.rollback()
-    res.cc("订单创建失败，请重试")
+    console.error("数据库错误详情:", error)
   } finally {
     if (connection) connection.release()
+  }
+}
+
+// 订单详情
+exports.handleOrderDetail = async (req, res) => {
+  try {
+    // 获取订单号
+    const orderId = parseInt(req.query.orderId) || parseInt(req.body.orderId)
+
+    const [orderRows] = await db.query(`select * from orders where id = ?`, [
+      orderId,
+    ])
+    if (orderRows.length < 0) return res.cc("订单不存在")
+
+    const [handleData] = orderRows
+    handleData.created_at = time.dateFormat(handleData.created_at)
+
+    res.send({
+      status: 0,
+      data: handleData,
+    })
+  } catch (error) {
+    console.error("数据库错误详情:", error)
+    res.cc("服务异常，请重试")
   }
 }
