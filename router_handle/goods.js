@@ -1,6 +1,7 @@
 const db = require("../db/mysql2")
 
 exports.handleAddGoods = async (req, res) => {
+    const userId = req.auth.id
   try {
     // 1. 验证必需字段
     if (!req.body.title || !req.files?.mainImage) {
@@ -38,8 +39,8 @@ exports.handleAddGoods = async (req, res) => {
     )
     goodsData.stock = stock > 0 ? stock : 1000 // 如果没有规格，默认库存1000
     const insertGoodsSql = `
-      INSERT INTO goods (title, price_min, price_max, description, main_image, stock)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO goods (title, price_min, price_max, description, main_image, stock,publisher)
+      VALUES (?, ?, ?, ?, ?, ?,?)
     `
     const [goodsResult] = await db.query(insertGoodsSql, [
       goodsData.title,
@@ -48,6 +49,7 @@ exports.handleAddGoods = async (req, res) => {
       goodsData.description,
       filePaths.mainImage,
       goodsData.stock,
+      userId
     ])
     const goodsId = goodsResult.insertId
 

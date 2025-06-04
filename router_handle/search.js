@@ -12,19 +12,22 @@ exports.handleSearchSelect = async (req, res) => {
       // 通过搜索查询
 
       const dql = `
-     select g.id,
-        g.title,
-        g.price_min,
-        g.main_image as 'goods_cover_image',
-        g.price_max,
-        g.stock,
-        g.sales,
-        g.id as 'goods_id'
-            from goods g
-            left join goods_categories gc on g.id = gc.goods_id
-            left join categories c on gc.category_id = c.id
-            where g.title like ? or c.name like  ?
-            group by g.id
+              SELECT
+                  g.id,
+                  g.title,
+                  g.price_min,
+                  g.main_image AS 'goods_cover_image',
+                  g.price_max,
+                  g.stock,
+                  g.sales,
+                  g.id AS 'goods_id'
+              FROM goods g
+              LEFT JOIN goods_categories gc ON g.id = gc.goods_id
+              LEFT JOIN categories c ON gc.category_id = c.id
+              WHERE
+                  g.status = 0  
+                  AND (g.title LIKE ? OR c.name LIKE ?)
+              GROUP BY g.id
             `
       const [results] = await db.query(dql, [`%${keyword}%`, `%${keyword}%`])
       results.forEach(
