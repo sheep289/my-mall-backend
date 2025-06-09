@@ -102,7 +102,7 @@ exports.pageHomeNavHandle = async (req, res) => {
 exports.pageHomeGoodsListHandle = async (req, res) => {
     try {
         const page = parseInt(req.body.page) || 1  //默认第一页
-        const limit = parseInt(req.body.limit) || 10  //默认每一页4条
+        const limit = parseInt(req.body.limit) || 10  //默认每一页条数
 
         //  page 和 limit 是有效数字
         if (isNaN(page) || isNaN(limit)) {
@@ -122,7 +122,8 @@ exports.pageHomeGoodsListHandle = async (req, res) => {
             g.main_image as 'goods_cover_image'
                 from goods g
                 where status = 0
-                group by g.id limit ? offset ?
+                order by rand()
+                limit ? offset ?
         `
 
         db.query(dql, [limit, offset], (err, results) => {

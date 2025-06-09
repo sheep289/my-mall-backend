@@ -53,7 +53,7 @@ exports.handleAddGoods = async (req, res) => {
     ])
     const goodsId = goodsResult.insertId
 
-    // 5. 批量插入图片（修正后的关键部分）
+    // 5. 批量插入图片
     const insertImagesSql = `
       INSERT INTO goods_images (goods_id, url, type, index_num)
       VALUES ?
